@@ -2,16 +2,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getSavedPin, savePin, clearPin,
   cloudLoad, cloudSave, cloudGetVersions, cloudRestoreVersion,
-  localLoad, localSave,
-  getSheetsUrl, saveSheetsUrl,
+  localLoad, localSave, getSheetsUrl, saveSheetsUrl,
 } from "./storage";
 
 const SOURCES = [
   { id: "dividends", name: "每月股息" },
-  { id: "bitfinex", name: "Bitfinex 放贷" },
-  { id: "ipo", name: "港股打新" },
-  { id: "onchain", name: "链上机会" },
-  { id: "fund", name: "守拙基金分红" },
+  { id: "bitfinex",  name: "Bitfinex 放贷" },
+  { id: "ipo",       name: "港股打新" },
+  { id: "onchain",   name: "链上机会" },
+  { id: "fund",      name: "守拙基金分红" },
 ];
 const RULES = ["不炒股票", "不炒币，只做周期交易", "不买山寨，远离诈骗"];
 const MO = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
@@ -20,715 +19,722 @@ const YEAR = NOW.getFullYear();
 const CM = NOW.getMonth();
 
 const empty = () => ({
-  sources: SOURCES.reduce((a, s) => ({ ...a, [s.id]: { principal: 0, hours: 0 } }), {}),
-  monthly: Array.from({ length: 12 }, () => SOURCES.reduce((a, s) => ({ ...a, [s.id]: 0 }), {})),
-  dca: Array.from({ length: 12 }, () => ({ amount: 0, note: "" })),
+  sources: SOURCES.reduce((a,s) => ({...a,[s.id]:{principal:0,hours:0}}),{}),
+  monthly: Array.from({length:12},()=>SOURCES.reduce((a,s)=>({...a,[s.id]:0}),{})),
+  dca: Array.from({length:12},()=>({amount:0,note:""})),
   violations: [],
   year: YEAR,
   labels: {
-    sources: SOURCES.map((s) => s.name),
+    sources: SOURCES.map(s=>s.name),
     rules: [...RULES],
-    sections: { cashflow: "现金流录入", dca: "资产定投", overview: "月度总览", principal: "投入本金 & 年化收益", discipline: "纪律红线" },
+    sections: { cashflow:"现金流录入", dca:"资产定投", overview:"月度总览", principal:"本金 & 年化", discipline:"纪律红线" },
   },
 });
 
 const merge = (raw) => {
   if (!raw || raw.year !== YEAR) return empty();
-  return { ...empty(), ...raw, sources: { ...empty().sources, ...raw.sources } };
+  return { ...empty(), ...raw, sources:{...empty().sources,...raw.sources}, labels:{...empty().labels,...raw.labels} };
 };
 
-const F = (n) => {
-  if (n === null || n === undefined || n === 0) return "—";
-  return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtUSD = (n) => {
+  if (!n || n===0) return "—";
+  return "$" + n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
 };
-const F2 = (n) => {
-  if (!n || n === 0) return "—";
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtNum = (n) => {
+  if (!n || n===0) return "—";
+  return n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
 };
-const P = (n) => (!isFinite(n) || isNaN(n) || n === 0) ? "—" : (n * 100).toFixed(1) + "%";
+const fmtPct = (n) => (!isFinite(n)||isNaN(n)||n===0) ? "—" : (n*100).toFixed(1)+"%";
 
 const exportJSON = (d) => {
-  const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url;
-  a.download = `cashflow-${YEAR}-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click(); URL.revokeObjectURL(url);
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:"application/json"}));
+  a.download=`cashflow-${YEAR}-${NOW.toISOString().slice(0,10)}.json`; a.click();
 };
-
 const pushToSheets = async (d) => {
-  const url = getSheetsUrl();
-  if (!url) throw new Error("未设置 URL");
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "snapshot", ...d }) });
-  const r = await res.json();
-  if (!r.success) throw new Error(r.error || "失败");
+  const url=getSheetsUrl(); if(!url) throw new Error("未设置 URL");
+  const r=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action:"snapshot",...d})});
+  const j=await r.json(); if(!j.success) throw new Error(j.error||"失败");
 };
 
-/* ============ GLOBAL CSS ============ */
+/* ─── CSS ─── */
 const CSS = `
-:root {
-  --accent: #F37021;
-  --accent-hover: #D9611A;
-  --accent-light: #FEF3EC;
-  --up: #2DBB7B;
-  --up-bg: #E8F8F1;
-  --down: #E84646;
-  --down-bg: #FEF7F7;
-  --bg: #F8F9FA;
-  --card: #FFFFFF;
-  --border: #EAEAEA;
-  --hover-bg: #F8F9FA;
-  --th-bg: transparent;
-  --text1: #1A1A1A;
-  --text2: #888888;
-  --text3: #BBBBBB;
-  --input-bg: #FFFBF5;
-  --input-text: #1677FF;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --gold:#E8A838;--gold-dk:#C8871C;--gold-lt:#FEF3D7;
+  --emerald:#059669;--emerald-lt:#ECFDF5;--emerald-dk:#047857;
+  --rose:#DC2626;--rose-lt:#FEE2E2;
+  --navy:#0A1628;--navy2:#112240;--navy3:#1B3A5C;
+  --bg:#F2F4F7;--card:#FFFFFF;
+  --border:#E4E7EC;--border-lt:#F1F3F6;
+  --hover:#F8FAFC;
+  --t1:#0F172A;--t2:#64748B;--t3:#CBD5E1;
+  --inp-bg:#FFFDF5;--inp-c:#2563EB;
+  --radius:14px;--radius-sm:8px;
+  --shadow:0 2px 12px rgba(0,0,0,0.07);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.12);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif;color:var(--text1);font-size:13px;line-height:1.5;}
-input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+html,body{background:var(--bg);font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif;color:var(--t1);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 input[type=number]{-moz-appearance:textfield;}
+::-webkit-scrollbar{height:4px;width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:2px;}
 
-.page{max-width:960px;margin:0 auto;padding:24px 24px 56px;}
+/* ── Layout ── */
+.wrap{max-width:1000px;margin:0 auto;padding:0 0 64px;}
 
-/* Cards */
-.card{background:var(--card);border-radius:12px;border:1px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.04);padding:20px 24px;margin-bottom:16px;}
+/* ── Hero ── */
+.hero{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 55%,var(--navy3) 100%);
+  padding:28px 36px 0;
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;top:-60px;right:-60px;width:280px;height:280px;
+  background:radial-gradient(circle,rgba(232,168,56,0.08) 0%,transparent 70%);
+  pointer-events:none;
+}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px;}
+.hero-brand{}
+.hero-brand .brand-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:2px;margin-bottom:4px;}
+.hero-brand .brand-sub{font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:0.5px;}
+.hero-kpi-box{
+  background:linear-gradient(135deg,rgba(232,168,56,0.15),rgba(232,168,56,0.05));
+  border:1px solid rgba(232,168,56,0.25);
+  border-radius:12px;padding:14px 22px;text-align:right;min-width:176px;flex-shrink:0;
+}
+.hero-kpi-box .hk-label{font-size:10px;font-weight:600;letter-spacing:1.5px;color:rgba(232,168,56,0.8);text-transform:uppercase;margin-bottom:6px;}
+.hero-kpi-box .hk-val{font-size:28px;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums;line-height:1.1;}
+.hero-kpi-box .hk-sub{font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;}
 
-/* Header card — orange top stripe */
-.card-header{border-top:4px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+/* KPI Strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,0.07);}
+.kpi-cell{padding:18px 24px;border-right:1px solid rgba(255,255,255,0.07);}
+.kpi-cell:last-child{border-right:none;}
+.kpi-cell .kc-label{font-size:10px;font-weight:500;letter-spacing:1px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px;}
+.kpi-cell .kc-val{font-size:20px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;line-height:1.2;}
+.kpi-cell .kc-sub{font-size:10px;color:rgba(255,255,255,0.3);margin-top:4px;}
 
-/* Card title — small gray label, no orange bar */
-.card-title{font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0.5px;margin-bottom:14px;text-transform:uppercase;}
+/* ── Toolbar ── */
+.toolbar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 24px;background:var(--card);border-bottom:1px solid var(--border);
+  flex-wrap:wrap;gap:10px;
+}
+.toolbar-l,.toolbar-r{display:flex;gap:8px;align-items:center;}
 
-/* Tables */
+/* ── Month pills ── */
+.month-pills{display:flex;gap:4px;overflow-x:auto;padding:4px 0;scrollbar-width:none;}
+.month-pills::-webkit-scrollbar{display:none;}
+.mpill{
+  padding:5px 13px;border-radius:20px;font-size:12px;font-weight:500;
+  white-space:nowrap;cursor:pointer;transition:all 0.15s;
+  border:1px solid var(--border);background:var(--card);color:var(--t2);
+  position:relative;
+}
+.mpill:hover{background:var(--hover);border-color:#b0bec5;color:var(--t1);}
+.mpill.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.mpill.has-data{color:var(--t1);font-weight:600;}
+.mpill.has-data::after{
+  content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:4px;height:4px;border-radius:50%;background:var(--gold);
+}
+.mpill.active::after{background:rgba(255,255,255,0.5);}
+
+/* Month panel */
+.month-picker-wrap{position:relative;}
+.month-panel{
+  position:absolute;top:calc(100% + 8px);left:0;z-index:60;
+  background:var(--card);border-radius:var(--radius);border:1px solid var(--border);
+  box-shadow:var(--shadow-lg);padding:16px;width:260px;
+}
+.month-panel-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:14px;font-weight:700;}
+.month-panel-hd button{background:none;border:none;cursor:pointer;color:var(--t2);padding:4px 8px;border-radius:6px;font-size:16px;}
+.month-panel-hd button:hover{background:var(--hover);}
+.mpanel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.mpc{padding:9px 0;border-radius:8px;text-align:center;cursor:pointer;font-size:12px;font-weight:500;color:var(--t2);position:relative;transition:all 0.15s;}
+.mpc:hover{background:var(--hover);}
+.mpc.active{background:var(--navy);color:#fff;}
+.mpc.has-data{color:var(--t1);font-weight:700;}
+.mpc.has-data::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gold);}
+.mpc.active::after{background:rgba(255,255,255,0.4);}
+
+/* ── Buttons ── */
+.btn{
+  display:inline-flex;align-items:center;gap:5px;padding:8px 16px;
+  border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--card);color:var(--t2);font-size:13px;font-weight:500;
+  cursor:pointer;transition:all 0.15s;font-family:inherit;white-space:nowrap;
+}
+.btn:hover{background:var(--hover);border-color:#adb5bd;color:var(--t1);box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+.btn-primary{background:var(--gold);color:#fff;border-color:var(--gold);font-weight:600;}
+.btn-primary:hover{background:var(--gold-dk);border-color:var(--gold-dk);box-shadow:0 2px 12px rgba(232,168,56,0.4);}
+.btn-ghost{background:transparent;border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);}
+.btn-ghost:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.3);color:#fff;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.btn-icon{padding:7px 10px;}
+
+/* ── Content area ── */
+.content{padding:20px 24px 0;}
+
+/* ── Cards ── */
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:22px 24px;transition:box-shadow 0.2s;}
+.card:hover{box-shadow:0 4px 20px rgba(0,0,0,0.09);}
+.card-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:16px;}
+
+/* ── Grid ── */
+.grid3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:16px;margin-bottom:16px;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+/* ── Tables ── */
 table{border-collapse:collapse;width:100%;}
-th{background:var(--th-bg);color:var(--text2);font-size:11px;font-weight:400;letter-spacing:0.3px;padding:6px 12px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
+th{
+  background:transparent;color:var(--t3);font-size:11px;font-weight:500;
+  letter-spacing:0.4px;padding:0 14px 10px;text-align:right;
+  border-bottom:2px solid var(--border-lt);white-space:nowrap;
+}
 th:first-child{text-align:left;}
-td{padding:10px 12px;border-bottom:1px solid #F4F4F4;font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;line-height:1.4;}
+td{
+  padding:11px 14px;border-bottom:1px solid var(--border-lt);font-size:13px;
+  font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--t1);
+}
 td:first-child{text-align:left;}
-tr:last-child td{border-bottom:none;}
-tbody tr:hover td{background:#FAFBFC;}
-.seq{text-align:center!important;color:var(--text3);font-size:11px;width:28px;min-width:28px;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:#FAFBFD;}
+.n{text-align:center!important;color:var(--t3);font-size:11px;width:28px;}
 
 /* Total row */
-.total-row td{border-top:1px solid var(--border);border-bottom:none;font-weight:600;background:var(--up-bg);color:var(--up);}
-.total-row td:first-child{color:var(--text1);}
+.trow td{
+  border-top:2px solid var(--border);border-bottom:none!important;
+  background:var(--emerald-lt);color:var(--emerald);font-weight:700;
+}
+.trow td:first-child{color:var(--t1);}
 
-/* Editable input cells */
-.input-cell{background:var(--input-bg);}
-.input-cell input{border:none;background:transparent;color:var(--input-text);font-size:13px;font-family:inherit;font-variant-numeric:tabular-nums;text-align:right;width:100%;min-width:72px;outline:none;padding:0;}
-.input-cell input::placeholder{color:var(--text3);}
+/* Input cells */
+.ic{background:var(--inp-bg);}
+.ic input{border:none;background:transparent;color:var(--inp-c);font-size:13px;font-family:inherit;font-variant-numeric:tabular-nums;text-align:right;width:100%;min-width:68px;outline:none;padding:0;}
+.ic input::placeholder{color:var(--t3);}
 
-/* Buttons */
-.btn{padding:7px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s ease;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;}
-.btn:hover{background:var(--hover-bg);border-color:#CCC;color:var(--text1);box-shadow:0 1px 4px rgba(0,0,0,0.06);}
-.btn-primary{background:var(--accent);color:#fff;border:none;font-weight:600;}
-.btn-primary:hover{background:var(--accent-hover);box-shadow:0 2px 8px rgba(243,112,33,0.3);}
-.btn-icon{padding:6px 10px;font-size:13px;}
+/* ── Rule rows ── */
+.rule-r{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-lt);}
+.rule-r:last-child{border-bottom:none;}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-red{background:var(--rose-lt);color:var(--rose);}
+.badge-gray{background:var(--border-lt);color:var(--t3);}
 
-/* Header layout */
-.header-inner{display:flex;justify-content:space-between;align-items:center;gap:24px;}
-.header-left .h-title{font-size:19px;font-weight:700;letter-spacing:2px;color:var(--text1);}
-.header-left .h-sub{font-size:11px;color:var(--text3);margin-top:3px;}
-.header-kpi-box{background:var(--up-bg);border-radius:12px;padding:14px 24px;text-align:right;min-width:160px;}
-.header-kpi-box .hk-label{font-size:11px;color:var(--up);font-weight:500;margin-bottom:4px;}
-.header-kpi-box .hk-value{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--up);line-height:1.1;}
+/* ── Notes input ── */
+.note-inp{border:none;border-bottom:1px solid var(--border);background:transparent;font-size:12px;color:var(--inp-c);width:100%;padding:5px 0;outline:none;font-family:inherit;transition:border-color 0.15s;}
+.note-inp:focus{border-bottom-color:var(--gold);}
 
-/* KPI strip below header */
-.kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--border);margin-top:16px;}
-.kpi-strip-item{padding:14px 0 6px;padding-left:20px;border-right:1px solid var(--border);}
-.kpi-strip-item:last-child{border-right:none;}
-.kpi-strip-item .ks-label{font-size:11px;color:var(--text2);margin-bottom:3px;}
-.kpi-strip-item .ks-value{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;}
-.kpi-strip-item .ks-sub{font-size:10px;color:var(--text3);margin-top:2px;}
+/* ── Sync pill ── */
+.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:500;}
+.pill-ok{background:var(--emerald-lt);color:var(--emerald);}
+.pill-ing{background:var(--gold-lt);color:var(--gold-dk);}
 
-/* Toolbar */
-.toolbar-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
-.toolbar-left{display:flex;gap:8px;align-items:center;}
-.toolbar-right{display:flex;gap:6px;align-items:center;}
-
-/* Month picker */
-.month-picker-wrap{position:relative;display:inline-block;}
-.month-panel{position:absolute;top:calc(100% + 6px);left:0;background:var(--card);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);border:1px solid var(--border);padding:16px;z-index:50;width:264px;}
-.month-panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-.month-panel-header span{font-size:14px;font-weight:700;}
-.month-panel-header button{background:none;border:none;font-size:16px;cursor:pointer;color:var(--text2);padding:4px 8px;border-radius:4px;transition:background 0.15s;}
-.month-panel-header button:hover{background:var(--hover-bg);}
-.month-panel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
-.mp-cell{padding:9px 0;border-radius:8px;text-align:center;cursor:pointer;transition:all 0.15s;font-size:13px;font-weight:500;color:var(--text2);position:relative;}
-.mp-cell:hover{background:var(--hover-bg);}
-.mp-cell.active{background:var(--accent);color:#fff;font-weight:700;}
-.mp-cell.has-data{color:var(--text1);font-weight:700;}
-.mp-cell.has-data::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent);}
-.mp-cell.active::after{background:#fff;}
-
-/* 3-col main grid */
-.main-grid{display:grid;grid-template-columns:1.2fr 0.9fr 0.9fr;gap:16px;align-items:start;}
-
-/* Rule rows */
-.rule-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #F4F4F4;}
-.rule-row:last-child{border-bottom:none;}
-
-/* Sync pill */
-.sync-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;}
-.sync-ok{background:#EDFBF4;color:var(--up);}
-.sync-ing{background:var(--accent-light);color:var(--accent);}
-
-/* Footer bar */
-.footer-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px dashed var(--border);margin-top:4px;flex-wrap:wrap;gap:8px;}
-
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;}
-.modal{background:var(--card);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.15);max-width:520px;width:90%;max-height:82vh;overflow-y:auto;padding:28px 32px;}
-.modal h3{font-size:16px;font-weight:700;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:16px;}
-.modal-footer{border-top:1px solid var(--border);padding-top:16px;margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
-.modal-label{font-size:10px;font-weight:600;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;margin-top:16px;}
+/* ── Modal ── */
+.overlay{position:fixed;inset:0;background:rgba(10,22,40,0.5);backdrop-filter:blur(6px);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;}
+.modal{background:var(--card);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);max-width:520px;width:100%;max-height:86vh;overflow-y:auto;padding:28px 32px;}
+.modal-h{font-size:17px;font-weight:700;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+.modal-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t2);margin-bottom:8px;margin-top:18px;}
 .modal-label:first-child{margin-top:0;}
-.modal-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:border-color 0.15s;}
-.modal-input:focus{border-color:var(--accent);}
+.modal-inp{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:border-color 0.15s;background:var(--card);}
+.modal-inp:focus{border-color:var(--gold);}
+.modal-foot{border-top:1px solid var(--border);padding-top:16px;margin-top:20px;display:flex;gap:8px;justify-content:flex-end;}
 
-/* Version list */
-.ver-list{max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
-.ver-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid #F4F4F4;cursor:pointer;font-size:12px;transition:background 0.15s;}
-.ver-item:hover{background:var(--hover-bg);}
-.ver-item:last-child{border-bottom:none;}
+/* ── Version list ── */
+.ver-wrap{max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;}
+.ver-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border-lt);cursor:pointer;font-size:12px;transition:background 0.15s;}
+.ver-row:hover{background:var(--hover);}
+.ver-row:last-child{border-bottom:none;}
 
-/* Notes input */
-.notes-input{border:none;border-bottom:1px solid var(--border);background:transparent;font-size:12px;color:var(--input-text);width:100%;padding:6px 0;outline:none;font-family:inherit;transition:border-color 0.15s;}
-.notes-input:focus{border-bottom-color:var(--accent);}
+/* ── Footer ── */
+.foot{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;margin-top:8px;border-top:1px dashed var(--border);flex-wrap:wrap;gap:8px;}
+.foot-l,.foot-r{display:flex;gap:6px;}
 
-@media(max-width:768px){
-  .main-grid{grid-template-columns:1fr;}
-  .header-inner{flex-direction:column;align-items:flex-start;}
-  .header-kpi-box{width:100%;}
+/* ── Responsive ── */
+@media(max-width:800px){
+  .grid3{grid-template-columns:1fr;}
+  .hero-top{flex-direction:column;}
+  .hero-kpi-box{width:100%;text-align:left;}
   .kpi-strip{grid-template-columns:repeat(2,1fr);}
-  .page{padding:16px 16px 40px;}
-  .card{padding:16px 16px;}
+  .hero{padding:22px 20px 0;}
+  .toolbar,.content,.foot{padding-left:16px;padding-right:16px;}
 }
 @media(max-width:480px){
   .kpi-strip{grid-template-columns:1fr 1fr;}
-  .kpi-strip-item{padding-left:12px;}
+  .kpi-cell{padding:14px 16px;}
 }
 `;
 
-/* ============ LOGIN ============ */
-function Login({ onLogin }) {
-  const [pin, setPin] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+/* ─── LOGIN ─── */
+function Login({onLogin}) {
+  const [pin,setPin]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
 
-  const go = async () => {
-    if (pin.length < 4) { setErr("至少 4 位数字"); return; }
-    setLoading(true); setErr("");
-    try {
-      const cloud = await cloudLoad(pin);
-      const d = cloud ? merge(cloud) : merge(localLoad());
-      savePin(pin); localSave(d);
-      if (!cloud) try { await cloudSave(pin, d); } catch {}
-      onLogin(pin, d);
-    } catch {
-      savePin(pin); onLogin(pin, merge(localLoad()));
-    }
+  const go=async()=>{
+    if(pin.length<4){setErr("至少 4 位");return;}
+    setLoading(true);setErr("");
+    try{
+      const cloud=await cloudLoad(pin);
+      const d=cloud?merge(cloud):merge(localLoad());
+      savePin(pin);localSave(d);
+      if(!cloud) try{await cloudSave(pin,d);}catch{}
+      onLogin(pin,d);
+    }catch{savePin(pin);onLogin(pin,merge(localLoad()));}
     setLoading(false);
   };
 
-  return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+  return(
+    <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <style>{CSS}</style>
-      <div className="card card-header" style={{ maxWidth: 340, width: "90%", textAlign: "center", padding: "32px 28px" }}>
-        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: 3, marginBottom: 4 }}>现金流实验室</div>
-        <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 28 }}>输入 PIN 码 · 多设备同步</div>
+      <div className="card" style={{width:"100%",maxWidth:360,textAlign:"center",padding:"40px 32px"}}>
+        <div style={{width:52,height:52,background:"linear-gradient(135deg,var(--navy),var(--navy3))",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 20px"}}>🐷</div>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:1.5,marginBottom:6}}>小博现金流实验室</div>
+        <div style={{fontSize:12,color:"var(--t3)",marginBottom:28}}>输入 PIN 码 · 多设备同步</div>
         <input type="password" inputMode="numeric" value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-          onKeyDown={(e) => e.key === "Enter" && go()}
-          placeholder="4–8 位数字"
-          style={{ width: "100%", textAlign: "center", fontSize: 24, fontVariantNumeric: "tabular-nums", letterSpacing: 10, padding: "14px 0", border: "none", borderBottom: "2px solid var(--border)", outline: "none", background: "transparent", fontFamily: "inherit" }} />
-        {err && <div style={{ color: "var(--down)", fontSize: 12, marginTop: 8 }}>{err}</div>}
-        <button className="btn btn-primary" style={{ width: "100%", padding: 12, fontSize: 14, marginTop: 20 }} onClick={go} disabled={loading}>
-          {loading ? "连接中..." : "进入"}
+          onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,8))}
+          onKeyDown={e=>e.key==="Enter"&&go()} placeholder="4–8 位数字"
+          style={{width:"100%",textAlign:"center",fontSize:22,fontVariantNumeric:"tabular-nums",letterSpacing:12,padding:"12px 0",border:"none",borderBottom:"2px solid var(--border)",outline:"none",background:"transparent",fontFamily:"inherit",marginBottom:err?8:20,transition:"border-color 0.2s"}}
+          onFocus={e=>e.target.style.borderBottomColor="var(--gold)"}
+          onBlur={e=>e.target.style.borderBottomColor="var(--border)"}
+        />
+        {err&&<div style={{color:"var(--rose)",fontSize:12,marginBottom:12}}>{err}</div>}
+        <button className="btn btn-primary" style={{width:"100%",padding:"12px 0",fontSize:14,borderRadius:10,justifyContent:"center"}} onClick={go} disabled={loading}>
+          {loading?"连接中...":"进入"}
         </button>
-        <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 20, lineHeight: 1.8 }}>首次输入即注册 · 同一 PIN = 同一份数据</div>
+        <div style={{fontSize:10,color:"var(--t3)",marginTop:20,lineHeight:1.9}}>
+          首次输入即注册<br/>同一 PIN = 任何设备 = 同一份数据
+        </div>
       </div>
     </div>
   );
 }
 
-/* ============ APP ============ */
+/* ─── MAIN ─── */
 export default function App() {
-  const [pin, setPin] = useState(getSavedPin());
-  const [data, setData] = useState(null);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [editMonth, setEditMonth] = useState(CM);
-  const [syncing, setSyncing] = useState(false);
-  const [toast, setToast] = useState("");
-  const [modal, setModal] = useState(null);
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [versions, setVersions] = useState([]);
-  const [sheetsUrl, setSheetsUrlLocal] = useState(() => getSheetsUrl());
-  const fileRef = useRef(null);
-  const syncTimer = useRef(null);
+  const [pin,setPin]=useState(getSavedPin());
+  const [data,setData]=useState(null);
+  const [loggedIn,setLoggedIn]=useState(false);
+  const [em,setEm]=useState(CM); // editMonth
+  const [syncing,setSyncing]=useState(false);
+  const [toast,setToast]=useState("");
+  const [modal,setModal]=useState(null);
+  const [showPicker,setShowPicker]=useState(false);
+  const [versions,setVersions]=useState([]);
+  const [sheetsUrl,setSheetsUrlLocal]=useState(()=>getSheetsUrl());
+  const fileRef=useRef(null);
+  const syncTimer=useRef(null);
 
-  useEffect(() => {
-    if (pin) {
-      // Show local data immediately — no waiting
-      const local = merge(localLoad());
-      setData(local);
-      setLoggedIn(true);
-      // Cloud sync in background
-      (async () => {
-        try {
-          const cloud = await cloudLoad(pin);
-          if (cloud) {
-            const d = merge(cloud);
-            localSave(d);
-            setData(d);
-          }
-        } catch {}
+  // Auto-login: local first, cloud silent sync
+  useEffect(()=>{
+    if(pin){
+      const local=merge(localLoad());setData(local);setLoggedIn(true);
+      (async()=>{
+        try{const c=await cloudLoad(pin);if(c){const d=merge(c);localSave(d);setData(d);}}catch{}
       })();
     }
-  }, []);
+  },[]);
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2000); };
+  const toast2=(msg)=>{setToast(msg);setTimeout(()=>setToast(""),2200);};
 
-  const save = useCallback((d) => {
-    setData(d); localSave(d);
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(async () => {
-      if (!pin) return;
-      setSyncing(true);
-      try { await cloudSave(pin, d); } catch (e) { console.warn("sync:", e); }
+  const save=useCallback((d)=>{
+    setData(d);localSave(d);
+    if(syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current=setTimeout(async()=>{
+      if(!pin) return;setSyncing(true);
+      try{await cloudSave(pin,d);}catch(e){console.warn(e);}
       setSyncing(false);
-    }, 2000);
-  }, [pin]);
+    },2000);
+  },[pin]);
 
-  const handleLogin = (p, d) => { setPin(p); setData(d); setLoggedIn(true); };
+  const handleLogin=(p,d)=>{setPin(p);setData(d);setLoggedIn(true);};
 
-  const handleImport = (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const imp = JSON.parse(ev.target.result);
-        if (imp.monthly && imp.sources) { save({ ...empty(), ...imp }); showToast("导入成功"); }
-        else showToast("格式错误");
-      } catch { showToast("导入失败"); }
-    };
-    reader.readAsText(file); e.target.value = "";
+  const handleImport=e=>{
+    const f=e.target.files?.[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{try{const i=JSON.parse(ev.target.result);if(i.monthly&&i.sources){save({...empty(),...i});toast2("导入成功");}else toast2("格式错误");}catch{toast2("导入失败");}};
+    r.readAsText(f);e.target.value="";
   };
 
-  const openVersions = async () => {
+  const openVersions=async()=>{
     setModal("versions");
-    try { setVersions(await cloudGetVersions(pin)); } catch { setVersions([]); }
+    try{setVersions(await cloudGetVersions(pin));}catch{setVersions([]);}
   };
 
-  const restoreVer = async (id, label) => {
-    if (!confirm(`恢复到 ${label}？\n当前数据将被覆盖。`)) return;
-    try {
-      const r = await cloudRestoreVersion(pin, id);
-      if (r) { save(merge(r)); showToast("已恢复"); setModal(null); }
-    } catch { showToast("恢复失败"); }
+  const restoreVer=async(id,label)=>{
+    if(!confirm(`恢复到 ${label}？`)) return;
+    try{const r=await cloudRestoreVersion(pin,id);if(r){save(merge(r));toast2("已恢复");setModal(null);}}catch{toast2("恢复失败");}
   };
 
-  if (!loggedIn && !pin) return <Login onLogin={handleLogin} />;
-  if (!data) return (
-    <div style={{ minHeight: "100vh", background: "#F5F5F7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+  if(!loggedIn&&!pin) return <Login onLogin={handleLogin}/>;
+  if(!data) return (
+    <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <style>{CSS}</style>
-      <span style={{ color: "var(--text3)" }}>加载中...</span>
+      <span style={{color:"var(--t3)",fontSize:14}}>加载中...</span>
     </div>
   );
 
-  // ---- Computed ----
-  const mt = data.monthly.map((m) => SOURCES.reduce((s, src) => s + (m[src.id] || 0), 0));
-  const ytd = mt.reduce((a, b) => a + b, 0);
-  const avgCF = ytd / (CM + 1);
-  const totalP = SOURCES.reduce((a, s) => a + (data.sources[s.id]?.principal || 0), 0);
-  const ytdDCA = data.dca.reduce((a, d) => a + (d.amount || 0), 0);
-  const srcYTD = SOURCES.map((s) => data.monthly.reduce((a, m) => a + (m[s.id] || 0), 0));
-  const bestSrc = srcYTD.indexOf(Math.max(...srcYTD));
-  const curMonth = mt[editMonth];
+  // Computed
+  const mt=data.monthly.map(m=>SOURCES.reduce((s,src)=>s+(m[src.id]||0),0));
+  const ytd=mt.reduce((a,b)=>a+b,0);
+  const avgCF=ytd/(CM+1);
+  const totalP=SOURCES.reduce((a,s)=>a+(data.sources[s.id]?.principal||0),0);
+  const ytdDCA=data.dca.reduce((a,d)=>a+(d.amount||0),0);
+  const sYTD=SOURCES.map(s=>data.monthly.reduce((a,m)=>a+(m[s.id]||0),0));
+  const bestIdx=sYTD.indexOf(Math.max(...sYTD));
 
-  // Labels (custom or default)
-  const lb = data.labels || empty().labels;
-  const srcName = (i) => lb.sources?.[i] || SOURCES[i]?.name || `来源${i+1}`;
-  const ruleName = (i) => lb.rules?.[i] || RULES[i] || `规则${i+1}`;
-  const secName = (key) => lb.sections?.[key] || key;
+  const lb=data.labels||empty().labels;
+  const sn=(i)=>lb.sources?.[i]||SOURCES[i]?.name||`来源${i+1}`;
+  const rn=(i)=>lb.rules?.[i]||RULES[i]||`规则${i+1}`;
+  const sec=(k)=>lb.sections?.[k]||k;
 
-  return (
+  const SETTINGS_INPUT={width:"100%",padding:"9px 12px",border:"1px solid var(--border)",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"};
+
+  return(
     <div>
       <style>{CSS}</style>
-      <input ref={fileRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
+      <input ref={fileRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
 
-      {toast && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: "var(--text1)", color: "#fff", padding: "8px 20px", borderRadius: 8, fontSize: 13, zIndex: 200, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>{toast}</div>}
+      {/* Toast */}
+      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"var(--navy)",color:"#fff",padding:"9px 22px",borderRadius:10,fontSize:13,zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,0.18)",pointerEvents:"none"}}>{toast}</div>}
 
-      <div className="page">
+      <div className="wrap">
 
-        {/* ===== HEADER ===== */}
-        <div className="card card-header">
-          <div className="header-inner">
-            <div className="header-left">
-              <div className="h-title">小博现金流实验室</div>
-              <div className="h-sub">{YEAR} · 工资全存 · 花钱靠现金流</div>
+        {/* ─── HERO ─── */}
+        <div className="hero">
+          <div className="hero-top">
+            <div className="hero-brand">
+              <div className="brand-title">小博现金流实验室</div>
+              <div className="brand-sub">{YEAR} · 工资全存，花钱靠现金流</div>
             </div>
-            <div className="header-kpi-box">
+            <div className="hero-kpi-box">
               <div className="hk-label">年度总流入</div>
-              <div className="hk-value">{F2(ytd)}</div>
+              <div className="hk-val">{fmtUSD(ytd)}</div>
+              <div className="hk-sub">{bestIdx>=0&&sYTD[bestIdx]>0?`最大：${sn(bestIdx)}`:"暂无数据"}</div>
             </div>
           </div>
 
           <div className="kpi-strip">
-            <div className="kpi-strip-item">
-              <div className="ks-label">月均现金流</div>
-              <div className="ks-value">{F2(Math.round(avgCF))}</div>
-              <div className="ks-sub">{MO[editMonth]}: {F2(curMonth)}</div>
+            <div className="kpi-cell">
+              <div className="kc-label">月均流入</div>
+              <div className="kc-val">{fmtUSD(Math.round(avgCF))}</div>
+              <div className="kc-sub">{MO[em]}：{fmtUSD(mt[em])}</div>
             </div>
-            <div className="kpi-strip-item">
-              <div className="ks-label">总投入本金</div>
-              <div className="ks-value">{F2(totalP)}</div>
-              <div className="ks-sub">年度定投: {F2(ytdDCA)}</div>
+            <div className="kpi-cell">
+              <div className="kc-label">总投入本金</div>
+              <div className="kc-val">{fmtUSD(totalP)}</div>
+              <div className="kc-sub">年度定投：{fmtUSD(ytdDCA)}</div>
             </div>
-            <div className="kpi-strip-item">
-              <div className="ks-label">综合年化</div>
-              <div className="ks-value" style={{ color: totalP > 0 && ytd > 0 ? "var(--accent)" : "var(--text3)" }}>
-                {totalP > 0 ? P(ytd / totalP) : "—"}
+            <div className="kpi-cell">
+              <div className="kc-label">综合年化</div>
+              <div className="kc-val" style={{color:totalP>0&&ytd>0?"var(--gold)":"rgba(255,255,255,0.3)"}}>
+                {totalP>0?fmtPct(ytd/totalP):"—"}
               </div>
-              <div className="ks-sub">{data.violations.length === 0 ? "纪律良好 ✓" : `违纪 ${data.violations.length} 次`}</div>
+              <div className="kc-sub">{data.violations.length===0?"纪律良好 ✓":`违纪 ${data.violations.length} 次`}</div>
             </div>
           </div>
         </div>
 
-        {/* ===== TOOLBAR ===== */}
-        <div className="toolbar-bar">
-          <div className="toolbar-left">
-            {/* Month picker */}
+        {/* ─── TOOLBAR ─── */}
+        <div className="toolbar">
+          <div className="toolbar-l">
+            {/* Month picker dropdown */}
             <div className="month-picker-wrap">
-              <button className="btn" onClick={() => setShowMonthPicker(!showMonthPicker)}>
-                📅 {MO[editMonth]}
-                {mt[editMonth] > 0 && <span style={{ fontSize: 11, color: "var(--up)", fontWeight: 600 }}>{F2(mt[editMonth])}</span>}
-                <span style={{ fontSize: 10, color: "var(--text3)" }}>▼</span>
+              <button className="btn" onClick={()=>setShowPicker(!showPicker)}>
+                📅 {MO[em]}
+                {mt[em]>0&&<span style={{fontSize:11,color:"var(--emerald)",fontWeight:600}}>{fmtUSD(mt[em])}</span>}
+                <span style={{fontSize:10,color:"var(--t3)"}}>▾</span>
               </button>
-              {showMonthPicker && <>
-                <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setShowMonthPicker(false)} />
+              {showPicker&&<>
+                <div style={{position:"fixed",inset:0,zIndex:59}} onClick={()=>setShowPicker(false)}/>
                 <div className="month-panel">
-                  <div className="month-panel-header">
-                    <button onClick={(e) => e.stopPropagation()}>‹</button>
-                    <span>{YEAR} 年</span>
-                    <button onClick={(e) => e.stopPropagation()}>›</button>
+                  <div className="month-panel-hd">
+                    <button>‹</button><span>{YEAR} 年</span><button>›</button>
                   </div>
-                  <div className="month-panel-grid">
-                    {MO.map((m, i) => (
-                      <div key={i} onClick={() => { setEditMonth(i); setShowMonthPicker(false); }}
-                        className={`mp-cell${editMonth === i ? " active" : ""}${mt[i] > 0 ? " has-data" : ""}`}
-                      >{m}</div>
+                  <div className="mpanel-grid">
+                    {MO.map((m,i)=>(
+                      <div key={i} className={`mpc${em===i?" active":""}${mt[i]>0?" has-data":""}`}
+                        onClick={()=>{setEm(i);setShowPicker(false);}}>{m}</div>
                     ))}
                   </div>
                 </div>
               </>}
             </div>
-            <button className="btn btn-primary" onClick={() => {}}>
-              ✏️ 修改 {MO[editMonth]}
-            </button>
+            <button className="btn btn-primary" onClick={()=>{}}>✏️ 修改 {MO[em]}</button>
           </div>
-          <div className="toolbar-right">
-            {syncing ? <span className="sync-pill sync-ing">⏳ 同步中</span> : <span className="sync-pill sync-ok">✓ 已同步</span>}
-            <button className="btn btn-icon" title="版本历史" onClick={openVersions}>🕐</button>
-            <button className="btn btn-icon" title="设置" onClick={() => setModal("settings")}>⚙️</button>
+          <div className="toolbar-r">
+            <span className={`pill ${syncing?"pill-ing":"pill-ok"}`}>
+              {syncing?"⏳ 同步中":"✓ 已同步"}
+            </span>
+            <button className="btn btn-icon btn-sm" title="版本历史" onClick={openVersions}>🕐</button>
+            <button className="btn btn-icon btn-sm" title="设置" onClick={()=>setModal("settings")}>⚙️</button>
           </div>
         </div>
 
-        {/* ===== 3-COLUMN MAIN GRID ===== */}
-        <div className="main-grid">
+        {/* ─── CONTENT ─── */}
+        <div className="content">
 
-          {/* COL 1: Monthly income entry */}
-          <div className="card">
-            <div className="card-title">{MO[editMonth]} {secName("cashflow")}</div>
-            <table>
-              <thead><tr>
-                <th className="seq">#</th>
-                <th style={{ textAlign: "left" }}>来源</th>
-                <th>本月收入</th>
-                <th>YTD</th>
-              </tr></thead>
-              <tbody>
-                {SOURCES.map((s, i) => (
-                  <tr key={s.id}>
-                    <td className="seq">{i + 1}</td>
-                    <td style={{ textAlign: "left", fontWeight: 500 }}>{srcName(i)}</td>
-                    <td className="input-cell">
-                      <input type="number" value={data.monthly[editMonth]?.[s.id] || ""} placeholder="0"
-                        onChange={(e) => {
-                          const m = [...data.monthly];
-                          m[editMonth] = { ...m[editMonth], [s.id]: parseFloat(e.target.value) || 0 };
-                          save({ ...data, monthly: m });
-                        }} />
-                    </td>
-                    <td style={{ color: srcYTD[i] > 0 ? "var(--text1)" : "var(--text3)", fontWeight: srcYTD[i] > 0 ? 600 : 400 }}>{F2(srcYTD[i])}</td>
-                  </tr>
-                ))}
-                <tr className="total-row">
-                  <td className="seq"></td>
-                  <td style={{ textAlign: "left", color: "var(--text1)" }}>合计</td>
-                  <td style={{ color: curMonth > 0 ? "var(--up)" : "var(--text3)", fontWeight: 700 }}>{F2(curMonth)}</td>
-                  <td style={{ color: ytd > 0 ? "var(--up)" : "var(--text3)", fontWeight: 700 }}>{F2(ytd)}</td>
-                </tr>
-              </tbody>
-            </table>
+          {/* Month pills (quick nav) */}
+          <div className="month-pills" style={{marginBottom:16}}>
+            {MO.map((m,i)=>(
+              <div key={i} className={`mpill${em===i?" active":""}${mt[i]>0?" has-data":""}`}
+                onClick={()=>setEm(i)}>{m}</div>
+            ))}
           </div>
 
-          {/* COL 2: DCA + Discipline */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* ─── 3-col grid ─── */}
+          <div className="grid3">
+
+            {/* Col 1: Cashflow Entry */}
             <div className="card">
-              <div className="card-title">{MO[editMonth]} {secName("dca")}</div>
+              <div className="card-title">{MO[em]} · {sec("cashflow")}</div>
               <table>
                 <thead><tr>
-                  <th style={{ textAlign: "left" }}>金额</th>
-                  <th style={{ textAlign: "left" }}>备注</th>
+                  <th className="n">#</th>
+                  <th style={{textAlign:"left"}}>来源</th>
+                  <th>本月收入</th>
+                  <th>YTD</th>
                 </tr></thead>
                 <tbody>
-                  <tr>
-                    <td className="input-cell" style={{ width: 90 }}>
-                      <input type="number" value={data.dca[editMonth]?.amount || ""} placeholder="0"
-                        onChange={(e) => { const d = [...data.dca]; d[editMonth] = { ...d[editMonth], amount: parseFloat(e.target.value) || 0 }; save({ ...data, dca: d }); }} />
-                    </td>
-                    <td style={{ textAlign: "left", padding: "4px 12px" }}>
-                      <input className="notes-input" type="text" value={data.dca[editMonth]?.note || ""} placeholder="这个月买了什么"
-                        onChange={(e) => { const d = [...data.dca]; d[editMonth] = { ...d[editMonth], note: e.target.value }; save({ ...data, dca: d }); }} />
-                    </td>
-                  </tr>
-                  <tr className="total-row">
-                    <td style={{ textAlign: "left", color: "var(--text1)" }}>年度合计</td>
-                    <td style={{ textAlign: "left", color: ytdDCA > 0 ? "var(--up)" : "var(--text3)", fontWeight: 700 }}>{F2(ytdDCA)}</td>
+                  {SOURCES.map((s,i)=>(
+                    <tr key={s.id}>
+                      <td className="n">{i+1}</td>
+                      <td style={{textAlign:"left",fontWeight:500}}>{sn(i)}</td>
+                      <td className="ic">
+                        <input type="number" value={data.monthly[em]?.[s.id]||""} placeholder="0"
+                          onChange={e=>{const m=[...data.monthly];m[em]={...m[em],[s.id]:parseFloat(e.target.value)||0};save({...data,monthly:m});}}/>
+                      </td>
+                      <td style={{color:sYTD[i]>0?"var(--t1)":"var(--t3)",fontWeight:sYTD[i]>0?600:400}}>{fmtUSD(sYTD[i])}</td>
+                    </tr>
+                  ))}
+                  <tr className="trow">
+                    <td className="n"></td>
+                    <td style={{textAlign:"left"}}>合计</td>
+                    <td style={{color:mt[em]>0?"var(--emerald)":"var(--t3)"}}>{fmtUSD(mt[em])}</td>
+                    <td style={{color:ytd>0?"var(--emerald)":"var(--t3)"}}>{fmtUSD(ytd)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
+            {/* Col 2: DCA + Discipline */}
+            <div className="stack">
+              <div className="card">
+                <div className="card-title">{MO[em]} · {sec("dca")}</div>
+                <table>
+                  <thead><tr>
+                    <th style={{textAlign:"left"}}>金额</th>
+                    <th style={{textAlign:"left"}}>备注</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr>
+                      <td className="ic" style={{width:90}}>
+                        <input type="number" value={data.dca[em]?.amount||""} placeholder="0"
+                          onChange={e=>{const d=[...data.dca];d[em]={...d[em],amount:parseFloat(e.target.value)||0};save({...data,dca:d});}}/>
+                      </td>
+                      <td style={{textAlign:"left",padding:"4px 14px"}}>
+                        <input className="note-inp" type="text" value={data.dca[em]?.note||""} placeholder="这个月买了什么"
+                          onChange={e=>{const d=[...data.dca];d[em]={...d[em],note:e.target.value};save({...data,dca:d});}}/>
+                      </td>
+                    </tr>
+                    <tr className="trow">
+                      <td style={{textAlign:"left",color:"var(--t1)"}}>年合计</td>
+                      <td style={{textAlign:"left",color:ytdDCA>0?"var(--emerald)":"var(--t3)"}}>{fmtUSD(ytdDCA)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="card" style={{flex:1}}>
+                <div className="card-title">{sec("discipline")}</div>
+                {RULES.map((_,i)=>{
+                  const cnt=data.violations.filter(v=>v.rule===i).length;
+                  return(
+                    <div className="rule-r" key={i}>
+                      <span style={{fontSize:12,fontWeight:500,color:cnt>0?"var(--rose)":"var(--t1)"}}>{rn(i)}</span>
+                      <span className={`badge ${cnt>0?"badge-red":"badge-gray"}`}>{cnt} 次</span>
+                    </div>
+                  );
+                })}
+                <button className="btn btn-sm" style={{width:"100%",marginTop:12,justifyContent:"center",fontSize:12}} onClick={()=>{
+                  const r=prompt("违反了哪条？(1/2/3)");
+                  const idx=parseInt(r)-1;
+                  if(idx>=0&&idx<=2){const note=prompt("原因：")||"";save({...data,violations:[...data.violations,{rule:idx,date:new Date().toISOString().slice(0,10),note}]});}
+                }}>📝 记录违反</button>
+              </div>
+            </div>
+
+            {/* Col 3: Principal */}
             <div className="card">
-              <div className="card-title">{secName("discipline")}</div>
-              {RULES.map((rule, i) => {
-                const count = data.violations.filter((v) => v.rule === i).length;
-                return (
-                  <div className="rule-row" key={i}>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: count > 0 ? "var(--down)" : "var(--text1)" }}>{ruleName(i)}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
-                      background: count > 0 ? "var(--down-bg)" : "#F4F4F4",
-                      color: count > 0 ? "var(--down)" : "var(--text3)" }}>{count} 次</span>
-                  </div>
-                );
-              })}
-              <button className="btn" style={{ width: "100%", marginTop: 10, fontSize: 12 }} onClick={() => {
-                const r = prompt("违反了哪条？(1/2/3)");
-                const idx = parseInt(r) - 1;
-                if (idx >= 0 && idx <= 2) {
-                  const note = prompt("原因：") || "";
-                  save({ ...data, violations: [...data.violations, { rule: idx, date: new Date().toISOString().slice(0, 10), note }] });
-                }
-              }}>📝 记录违反</button>
+              <div className="card-title">{sec("principal")}</div>
+              <table>
+                <thead><tr>
+                  <th style={{textAlign:"left"}}>来源</th>
+                  <th>本金</th>
+                  <th>年化</th>
+                </tr></thead>
+                <tbody>
+                  {SOURCES.map((s,i)=>{
+                    const sc=data.sources[s.id]||{};
+                    const yld=sc.principal>0?sYTD[i]/sc.principal:0;
+                    return(
+                      <tr key={s.id}>
+                        <td style={{textAlign:"left",fontWeight:500,fontSize:12}}>{sn(i)}</td>
+                        <td className="ic">
+                          <input type="number" value={sc.principal||""} placeholder="0"
+                            onChange={e=>save({...data,sources:{...data.sources,[s.id]:{...sc,principal:parseFloat(e.target.value)||0}}})}/>
+                        </td>
+                        <td style={{color:yld>0?"var(--gold)":"var(--t3)",fontWeight:700}}>{fmtPct(yld)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="trow">
+                    <td style={{textAlign:"left",color:"var(--t1)"}}>合计</td>
+                    <td style={{color:"var(--emerald)"}}>{fmtUSD(totalP)}</td>
+                    <td style={{color:"var(--gold)"}}>{totalP>0?fmtPct(ytd/totalP):"—"}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
-          {/* COL 3: Principal */}
+          {/* ─── Monthly Overview ─── */}
           <div className="card">
-            <div className="card-title">{secName("principal")}</div>
-            <table>
-              <thead><tr>
-                <th style={{ textAlign: "left" }}>来源</th>
-                <th>本金</th>
-                <th>年化</th>
-              </tr></thead>
-              <tbody>
-                {SOURCES.map((s, i) => {
-                  const sc = data.sources[s.id] || {};
-                  const yld = sc.principal > 0 ? srcYTD[i] / sc.principal : 0;
-                  return (
-                    <tr key={s.id}>
-                      <td style={{ textAlign: "left", fontWeight: 500, fontSize: 12 }}>{srcName(i)}</td>
-                      <td className="input-cell">
-                        <input type="number" value={sc.principal || ""} placeholder="0"
-                          onChange={(e) => save({ ...data, sources: { ...data.sources, [s.id]: { ...sc, principal: parseFloat(e.target.value) || 0 } } })} />
-                      </td>
-                      <td style={{ color: yld > 0 ? "var(--accent)" : "var(--text3)", fontWeight: 700 }}>{P(yld)}</td>
-                    </tr>
-                  );
-                })}
-                <tr className="total-row">
-                  <td style={{ textAlign: "left", color: "var(--text1)" }}>合计</td>
-                  <td style={{ color: "var(--up)", fontWeight: 700 }}>{F2(totalP)}</td>
-                  <td style={{ color: "var(--accent)", fontWeight: 700 }}>{totalP > 0 ? P(ytd / totalP) : "—"}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ===== FULL-WIDTH: Monthly Overview ===== */}
-        <div className="card">
-          <div className="card-title">{secName("overview")}</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ minWidth: 700 }}>
-              <thead><tr>
-                <th style={{ textAlign: "left", position: "sticky", left: 0, background: "var(--card)", zIndex: 1, minWidth: 100 }}>来源</th>
-                {MO.map((m, i) => (
-                  <th key={i} style={{ cursor: "pointer", color: editMonth === i ? "var(--accent)" : undefined, minWidth: 54 }}
-                    onClick={() => setEditMonth(i)}>{m}</th>
-                ))}
-                <th style={{ minWidth: 64 }}>合计</th>
-              </tr></thead>
-              <tbody>
-                {SOURCES.map((s, si) => (
-                  <tr key={s.id}>
-                    <td style={{ textAlign: "left", fontWeight: 500, position: "sticky", left: 0, background: "var(--card)", zIndex: 1 }}>{srcName(si)}</td>
-                    {MO.map((_, i) => {
-                      const v = data.monthly[i]?.[s.id] || 0;
-                      return <td key={i} style={{
-                        color: v > 0 ? "var(--text1)" : "var(--text3)",
-                        background: i === editMonth ? "var(--input-bg)" : undefined,
-                        fontWeight: v > 0 ? 500 : 400,
-                      }}>{v > 0 ? F(v) : "—"}</td>;
-                    })}
-                    <td style={{ fontWeight: 600, color: srcYTD[si] > 0 ? "var(--text1)" : "var(--text3)" }}>{F(srcYTD[si])}</td>
-                  </tr>
-                ))}
-                <tr className="total-row">
-                  <td style={{ textAlign: "left", fontWeight: 700, color: "var(--text1)", position: "sticky", left: 0, background: "var(--up-bg)", zIndex: 1 }}>现金流合计</td>
-                  {MO.map((_, i) => (
-                    <td key={i} style={{ fontWeight: 700, background: i === editMonth ? "#D6F4E8" : "var(--up-bg)" }}>
-                      {mt[i] > 0 ? F(mt[i]) : "—"}
-                    </td>
+            <div className="card-title">{sec("overview")}</div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{minWidth:720}}>
+                <thead><tr>
+                  <th style={{textAlign:"left",position:"sticky",left:0,background:"var(--card)",zIndex:1,minWidth:108}}>来源</th>
+                  {MO.map((m,i)=>(
+                    <th key={i} style={{cursor:"pointer",color:em===i?"var(--gold)":undefined,minWidth:52}} onClick={()=>setEm(i)}>{m}</th>
                   ))}
-                  <td style={{ fontWeight: 700 }}>{F(ytd)}</td>
-                </tr>
-                <tr>
-                  <td style={{ textAlign: "left", color: "var(--text2)", position: "sticky", left: 0, background: "var(--card)", zIndex: 1 }}>定投</td>
-                  {MO.map((_, i) => {
-                    const v = data.dca[i]?.amount || 0;
-                    return <td key={i} style={{ color: v > 0 ? "var(--text2)" : "var(--text3)" }}>{v > 0 ? F(v) : "—"}</td>;
-                  })}
-                  <td style={{ fontWeight: 600, color: "var(--text2)" }}>{F(ytdDCA)}</td>
-                </tr>
-              </tbody>
-            </table>
+                  <th style={{minWidth:60}}>合计</th>
+                </tr></thead>
+                <tbody>
+                  {SOURCES.map((s,si)=>(
+                    <tr key={s.id}>
+                      <td style={{textAlign:"left",fontWeight:500,position:"sticky",left:0,background:"var(--card)",zIndex:1}}>{sn(si)}</td>
+                      {MO.map((_,i)=>{
+                        const v=data.monthly[i]?.[s.id]||0;
+                        return <td key={i} style={{color:v>0?"var(--t1)":"var(--t3)",background:i===em?"var(--inp-bg)":undefined,fontWeight:v>0?500:400}}>{v>0?fmtNum(v):"—"}</td>;
+                      })}
+                      <td style={{fontWeight:600,color:sYTD[si]>0?"var(--t1)":"var(--t3)"}}>{fmtNum(sYTD[si])}</td>
+                    </tr>
+                  ))}
+                  <tr className="trow">
+                    <td style={{textAlign:"left",color:"var(--t1)",position:"sticky",left:0,background:"var(--emerald-lt)",zIndex:1,fontWeight:700}}>现金流合计</td>
+                    {MO.map((_,i)=>(
+                      <td key={i} style={{background:i===em?"#C6F0DC":undefined,fontWeight:700}}>
+                        {mt[i]>0?fmtNum(mt[i]):"—"}
+                      </td>
+                    ))}
+                    <td style={{fontWeight:700}}>{fmtNum(ytd)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{textAlign:"left",color:"var(--t2)",position:"sticky",left:0,background:"var(--card)",zIndex:1}}>定投</td>
+                    {MO.map((_,i)=>{const v=data.dca[i]?.amount||0;return <td key={i} style={{color:v>0?"var(--t2)":"var(--t3)"}}>{v>0?fmtNum(v):"—"}</td>;})}
+                    <td style={{fontWeight:600,color:"var(--t2)"}}>{fmtNum(ytdDCA)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        {/* ===== FOOTER ===== */}
-        <div className="footer-bar">
-          <div style={{ display: "flex", gap: 6 }}>
-            <button className="btn" style={{ fontSize: 12 }} onClick={() => { exportJSON(data); showToast("已导出"); }}>📤 导出</button>
-            <button className="btn" style={{ fontSize: 12 }} onClick={() => fileRef.current?.click()}>📥 导入</button>
-            <button className="btn" style={{ fontSize: 12 }} onClick={async () => {
-              if (!getSheetsUrl()) { showToast("请先在设置中配置 URL"); return; }
-              try { await pushToSheets(data); showToast("已推送"); } catch (e) { showToast("失败: " + e.message); }
-            }}>📊 Sheets</button>
+        {/* ─── FOOTER ─── */}
+        <div className="foot">
+          <div className="foot-l">
+            <button className="btn btn-sm" onClick={()=>{exportJSON(data);toast2("已导出");}}>📤 导出</button>
+            <button className="btn btn-sm" onClick={()=>fileRef.current?.click()}>📥 导入</button>
+            <button className="btn btn-sm" onClick={async()=>{
+              if(!getSheetsUrl()){toast2("请先设置 URL");return;}
+              try{await pushToSheets(data);toast2("已推送 ✓");}catch(e){toast2("失败: "+e.message);}
+            }}>📊 推送 Sheets</button>
           </div>
-          <button className="btn" style={{ fontSize: 12, color: "var(--down)" }} onClick={() => {
-            if (confirm("退出登录？本机缓存将清除。")) { clearPin(); setPin(""); setData(null); setLoggedIn(false); }
-          }}>退出登录</button>
+          <div className="foot-r">
+            <button className="btn btn-sm" style={{color:"var(--rose)"}} onClick={()=>{if(confirm("退出登录？")){clearPin();setPin("");setData(null);setLoggedIn(false);}}}>退出</button>
+          </div>
         </div>
       </div>
 
-      {/* ===== SETTINGS MODAL ===== */}
-      {modal === "settings" && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>⚙️ 设置</h3>
+      {/* ─── SETTINGS MODAL ─── */}
+      {modal==="settings"&&(
+        <div className="overlay" onClick={()=>setModal(null)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <div className="modal-h">⚙️ 设置</div>
 
-            <div className="modal-label">现金流来源名称</div>
-            <div style={{ marginBottom: 20 }}>
-              {SOURCES.map((s, i) => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: "var(--text3)", width: 20, textAlign: "center" }}>{i + 1}</span>
-                  <input type="text" value={srcName(i)}
-                    onChange={(e) => {
-                      const newLabels = { ...lb, sources: [...(lb.sources || SOURCES.map(x => x.name))] };
-                      newLabels.sources[i] = e.target.value;
-                      save({ ...data, labels: newLabels });
-                    }}
-                    style={{ flex: 1, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-                </div>
-              ))}
-            </div>
+            <div className="modal-label">现金流来源</div>
+            {SOURCES.map((s,i)=>(
+              <div key={s.id} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
+                <span style={{fontSize:11,color:"var(--t3)",width:16,textAlign:"center"}}>{i+1}</span>
+                <input className="modal-inp" value={sn(i)} onChange={e=>{const nl={...lb,sources:[...(lb.sources||SOURCES.map(x=>x.name))]};nl.sources[i]=e.target.value;save({...data,labels:nl});}}/>
+              </div>
+            ))}
 
             <div className="modal-label">纪律红线</div>
-            <div style={{ marginBottom: 20 }}>
-              {RULES.map((_, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: "var(--text3)", width: 20, textAlign: "center" }}>{i + 1}</span>
-                  <input type="text" value={ruleName(i)}
-                    onChange={(e) => {
-                      const newLabels = { ...lb, rules: [...(lb.rules || [...RULES])] };
-                      newLabels.rules[i] = e.target.value;
-                      save({ ...data, labels: newLabels });
-                    }}
-                    style={{ flex: 1, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-                </div>
-              ))}
-            </div>
+            {RULES.map((_,i)=>(
+              <div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
+                <span style={{fontSize:11,color:"var(--t3)",width:16,textAlign:"center"}}>{i+1}</span>
+                <input className="modal-inp" value={rn(i)} onChange={e=>{const nl={...lb,rules:[...(lb.rules||[...RULES])]};nl.rules[i]=e.target.value;save({...data,labels:nl});}}/>
+              </div>
+            ))}
 
             <div className="modal-label">区块标题</div>
-            <div style={{ marginBottom: 20 }}>
-              {[["cashflow","现金流录入"],["dca","资产定投"],["overview","月度总览"],["principal","投入本金 & 年化收益"],["discipline","纪律红线"]].map(([key, def]) => (
-                <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, color: "var(--text3)", width: 56, textAlign: "right" }}>{key}</span>
-                  <input type="text" value={secName(key)}
-                    onChange={(e) => {
-                      const newLabels = { ...lb, sections: { ...(lb.sections || {}), [key]: e.target.value } };
-                      save({ ...data, labels: newLabels });
-                    }}
-                    placeholder={def}
-                    style={{ flex: 1, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-                </div>
-              ))}
-            </div>
+            {[["cashflow","现金流录入"],["dca","资产定投"],["overview","月度总览"],["principal","本金 & 年化"],["discipline","纪律红线"]].map(([k,def])=>(
+              <div key={k} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
+                <span style={{fontSize:10,color:"var(--t3)",width:52,textAlign:"right"}}>{k}</span>
+                <input className="modal-inp" value={sec(k)} placeholder={def} onChange={e=>{const nl={...lb,sections:{...(lb.sections||{}),[k]:e.target.value}};save({...data,labels:nl});}}/>
+              </div>
+            ))}
 
-            <div className="modal-label">GOOGLE SHEETS</div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 6 }}>Apps Script Web App URL</div>
-              <input type="text" value={sheetsUrl}
-                onChange={(e) => { setSheetsUrlLocal(e.target.value); saveSheetsUrl(e.target.value); }}
-                placeholder="粘贴 URL"
-                style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-            </div>
+            <div className="modal-label">Google Sheets URL</div>
+            <input className="modal-inp" value={sheetsUrl} placeholder="粘贴 Apps Script URL"
+              onChange={e=>{setSheetsUrlLocal(e.target.value);saveSheetsUrl(e.target.value);}}/>
 
             <div className="modal-label">账户</div>
-            <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 2 }}>
-              PIN: {pin.replace(/./g, "•")}　·　年份: {YEAR}
+            <div style={{fontSize:12,color:"var(--t2)",lineHeight:2}}>
+              PIN：{pin.replace(/./g,"•")}　·　年份：{YEAR}
             </div>
 
-            <div className="modal-footer">
-              <button className="btn" onClick={() => setModal(null)}>关闭</button>
+            <div className="modal-foot">
+              <button className="btn" onClick={()=>setModal(null)}>关闭</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== VERSIONS MODAL ===== */}
-      {modal === "versions" && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>🕐 版本历史</h3>
-            <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 12 }}>每次修改自动保存，点击可恢复</div>
-            {versions.length === 0 ? (
-              <div style={{ color: "var(--text3)", fontSize: 13, padding: "20px 0", textAlign: "center" }}>暂无记录</div>
-            ) : (
-              <div className="ver-list">
-                {versions.map((v) => {
-                  const d = new Date(v.created_at);
-                  const label = d.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
-                  const isToday = d.toDateString() === new Date().toDateString();
-                  return (
-                    <div className="ver-item" key={v.id} onClick={() => restoreVer(v.id, label)}>
-                      <div>
-                        <span style={{ fontVariantNumeric: "tabular-nums" }}>{label}</span>
-                        {isToday && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--up)", fontWeight: 600 }}>今天</span>}
+      {/* ─── VERSIONS MODAL ─── */}
+      {modal==="versions"&&(
+        <div className="overlay" onClick={()=>setModal(null)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <div className="modal-h">🕐 版本历史</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginBottom:12}}>每次修改自动保存，点击可恢复到该版本</div>
+            {versions.length===0?(
+              <div style={{color:"var(--t3)",textAlign:"center",padding:"24px 0"}}>暂无记录</div>
+            ):(
+              <div className="ver-wrap">
+                {versions.map(v=>{
+                  const d=new Date(v.created_at);
+                  const label=d.toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+                  const today=d.toDateString()===new Date().toDateString();
+                  return(
+                    <div className="ver-row" key={v.id} onClick={()=>restoreVer(v.id,label)}>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontVariantNumeric:"tabular-nums"}}>{label}</span>
+                        {today&&<span style={{fontSize:10,color:"var(--emerald)",fontWeight:600}}>今天</span>}
                       </div>
-                      <span style={{ color: "var(--accent)", fontWeight: 600 }}>恢复</span>
+                      <span style={{color:"var(--gold)",fontWeight:600,fontSize:12}}>恢复</span>
                     </div>
                   );
                 })}
               </div>
             )}
-            <div className="modal-footer">
-              <button className="btn" onClick={() => setModal(null)}>关闭</button>
+            <div className="modal-foot">
+              <button className="btn" onClick={()=>setModal(null)}>关闭</button>
             </div>
           </div>
         </div>
