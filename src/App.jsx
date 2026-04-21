@@ -195,7 +195,6 @@ function Login({ onLogin }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <style>{CSS}</style>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <div className="card" style={{ maxWidth: 340, width: "90%", textAlign: "center", padding: "32px 28px" }}>
         <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: 3, marginBottom: 4 }}>现金流实验室</div>
         <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 28 }}>输入 PIN 码 · 多设备同步</div>
@@ -293,7 +292,7 @@ export default function App() {
   if (!loggedIn && !pin) return <Login onLogin={handleLogin} />;
   if (!data) return (
     <div style={{ minHeight: "100vh", background: "#F5F5F7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <style>{CSS}</style><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <style>{CSS}</style>
       <span style={{ color: "var(--text3)" }}>加载中...</span>
     </div>
   );
@@ -317,7 +316,6 @@ export default function App() {
   return (
     <div>
       <style>{CSS}</style>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <input ref={fileRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
 
       {toast && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: "var(--text1)", color: "#fff", padding: "8px 20px", borderRadius: 8, fontSize: 13, zIndex: 200, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>{toast}</div>}
