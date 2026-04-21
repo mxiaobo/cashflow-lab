@@ -21,13 +21,13 @@ const CM = NOW.getMonth();
 const empty = () => ({
   sources: SOURCES.reduce((a,s) => ({...a,[s.id]:{principal:0,hours:0}}),{}),
   monthly: Array.from({length:12},()=>SOURCES.reduce((a,s)=>({...a,[s.id]:0}),{})),
-  dca: Array.from({length:12},()=>({amount:0,note:""})),
+  dca:     Array.from({length:12},()=>({amount:0,note:""})),
   violations: [],
   year: YEAR,
   labels: {
-    sources: SOURCES.map(s=>s.name),
-    rules: [...RULES],
-    sections: { cashflow:"现金流录入", dca:"资产定投", overview:"月度总览", principal:"本金 & 年化", discipline:"纪律红线" },
+    sources:  SOURCES.map(s=>s.name),
+    rules:    [...RULES],
+    sections: {cashflow:"现金流录入",dca:"资产定投",overview:"月度总览",principal:"投入本金 & 年化",discipline:"纪律红线"},
   },
 });
 
@@ -36,20 +36,15 @@ const merge = (raw) => {
   return { ...empty(), ...raw, sources:{...empty().sources,...raw.sources}, labels:{...empty().labels,...raw.labels} };
 };
 
-const fmtUSD = (n) => {
-  if (!n || n===0) return "—";
-  return "$" + n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
-};
-const fmtNum = (n) => {
-  if (!n || n===0) return "—";
-  return n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
-};
-const fmtPct = (n) => (!isFinite(n)||isNaN(n)||n===0) ? "—" : (n*100).toFixed(1)+"%";
+const F$ = (n) => (!n||n===0)?"—":"$"+n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+const Fn = (n) => (!n||n===0)?"—":n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+const Fp = (n) => (!isFinite(n)||isNaN(n)||n===0)?"—":(n*100).toFixed(1)+"%";
 
 const exportJSON = (d) => {
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:"application/json"}));
-  a.download=`cashflow-${YEAR}-${NOW.toISOString().slice(0,10)}.json`; a.click();
+  a.download=`cashflow-${YEAR}-${NOW.toISOString().slice(0,10)}.json`;
+  a.click();
 };
 const pushToSheets = async (d) => {
   const url=getSheetsUrl(); if(!url) throw new Error("未设置 URL");
@@ -57,685 +52,814 @@ const pushToSheets = async (d) => {
   const j=await r.json(); if(!j.success) throw new Error(j.error||"失败");
 };
 
-/* ─── CSS ─── */
+/* ─────────────────────────────────────────────────────────────
+   CSS — 全部按 15 条规范实现，注释标注对应规范条款
+───────────────────────────────────────────────────────────── */
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-:root{
-  --gold:#E8A838;--gold-dk:#C8871C;--gold-lt:#FEF3D7;
-  --emerald:#059669;--emerald-lt:#ECFDF5;--emerald-dk:#047857;
-  --rose:#DC2626;--rose-lt:#FEE2E2;
-  --navy:#0A1628;--navy2:#112240;--navy3:#1B3A5C;
-  --bg:#F2F4F7;--card:#FFFFFF;
-  --border:#E4E7EC;--border-lt:#F1F3F6;
-  --hover:#F8FAFC;
-  --t1:#0F172A;--t2:#64748B;--t3:#CBD5E1;
-  --inp-bg:#FFFDF5;--inp-c:#2563EB;
-  --radius:14px;--radius-sm:8px;
-  --shadow:0 2px 12px rgba(0,0,0,0.07);
-  --shadow-lg:0 8px 32px rgba(0,0,0,0.12);
+/* ── 规范二：CSS 变量色板，不允许硬编码颜色 ── */
+:root {
+  --accent:    #FA6400;
+  --accent-hv: #E05A00;
+  --accent-lt: #FFF5EE;
+  --up:        #09B87A;
+  --up-bg:     #F0FBF5;
+  --down:      #E84646;
+  --down-bg:   #FEF7F7;
+  --bg:        #F5F5F7;
+  --card:      #FFFFFF;
+  --border:    #EBEBEB;
+  --hv:        #FAFAFA;
+  --th-bg:     #F8F8F8;
+  --t1:        #1A1A1A;
+  --t2:        #666666;
+  --t3:        #BBBBBB;
+  --inp-bg:    #FFFBF5;
+  --inp-c:     #1677FF;
 }
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{background:var(--bg);font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif;color:var(--t1);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;}
-input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
-input[type=number]{-moz-appearance:textfield;}
-::-webkit-scrollbar{height:4px;width:4px;}
-::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:2px;}
 
-/* ── Layout ── */
-.wrap{max-width:1000px;margin:0 auto;padding:0 0 64px;}
+/* ── Reset ── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  background: var(--bg);
+  /* 规范三：Noto Sans SC，在 index.html <link> 预加载 */
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--t1);
+  font-size: 13px; /* 规范三：表格正文 13px */
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+input[type=number] { -moz-appearance:textfield; }
 
-/* ── Hero ── */
-.hero{
-  background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 55%,var(--navy3) 100%);
-  padding:28px 36px 0;
-  position:relative;overflow:hidden;
-}
-.hero::before{
-  content:'';position:absolute;top:-60px;right:-60px;width:280px;height:280px;
-  background:radial-gradient(circle,rgba(232,168,56,0.08) 0%,transparent 70%);
-  pointer-events:none;
-}
-.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px;}
-.hero-brand{}
-.hero-brand .brand-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:2px;margin-bottom:4px;}
-.hero-brand .brand-sub{font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:0.5px;}
-.hero-kpi-box{
-  background:linear-gradient(135deg,rgba(232,168,56,0.15),rgba(232,168,56,0.05));
-  border:1px solid rgba(232,168,56,0.25);
-  border-radius:12px;padding:14px 22px;text-align:right;min-width:176px;flex-shrink:0;
-}
-.hero-kpi-box .hk-label{font-size:10px;font-weight:600;letter-spacing:1.5px;color:rgba(232,168,56,0.8);text-transform:uppercase;margin-bottom:6px;}
-.hero-kpi-box .hk-val{font-size:28px;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums;line-height:1.1;}
-.hero-kpi-box .hk-sub{font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;}
+/* ── 页面容器 ── */
+.page { max-width: 960px; margin: 0 auto; padding: 20px 20px 64px; }
 
-/* KPI Strip */
-.kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,0.07);}
-.kpi-cell{padding:18px 24px;border-right:1px solid rgba(255,255,255,0.07);}
-.kpi-cell:last-child{border-right:none;}
-.kpi-cell .kc-label{font-size:10px;font-weight:500;letter-spacing:1px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px;}
-.kpi-cell .kc-val{font-size:20px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;line-height:1.2;}
-.kpi-cell .kc-sub{font-size:10px;color:rgba(255,255,255,0.3);margin-top:4px;}
+/* ── 规范四：卡片——border-radius 严格 10px ── */
+.card {
+  background: var(--card);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05); /* 规范四：极轻 */
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+/* 规范四：主标题卡片：3px 主题色顶线，阴影稍重 */
+.card-ph {
+  border-top: 3px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
+/* ── 规范三：区块标题标签 ── */
+.lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin-bottom: 14px;
+}
+
+/* ── 规范五：表格 ── */
+table { border-collapse: collapse; width: 100%; }
+th {
+  background: var(--th-bg);          /* 规范五：#F8F8F8 */
+  color: var(--t2);
+  font-size: 12px;                   /* 规范三 */
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 8px 12px;                 /* 规范五 */
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border); /* 规范五：只有底部边框 */
+}
+th:first-child { text-align: left; }
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #F5F5F5; /* 规范五：比 border 更浅 */
+  font-size: 13px;
+  font-variant-numeric: tabular-nums; /* 规范三 */
+  text-align: right;
+  white-space: nowrap;
+}
+td:first-child { text-align: left; }
+tbody tr:last-child td { border-bottom: none; } /* 规范五 */
+tbody tr:hover td { background: var(--hv); }    /* 规范五 */
+
+/* 规范五：序号列 */
+.seq {
+  text-align: center !important;
+  color: var(--t3);
+  font-size: 11px;
+  width: 32px; min-width: 32px;
+}
+
+/* 规范五：合计行——正向绿底绿字 */
+.tr-total td {
+  border-top: 1px solid var(--border);
+  border-bottom: none !important;
+  background: var(--up-bg);
+  color: var(--up);
+  font-weight: 600;
+}
+.tr-total td.td-name { color: var(--t1); }
+
+/* ── 规范六：输入态 ── */
+.ic { background: var(--inp-bg); } /* 暖黄底 */
+.ic input {
+  border: none;
+  background: transparent;
+  color: var(--inp-c);             /* 蚂蚁蓝 */
+  font-size: 13px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  width: 100%;
+  min-width: 68px;
+  outline: none;
+  padding: 0;
+}
+.ic input::placeholder { color: var(--t3); }
+
+/* 规范六：备注输入框 */
+.note-i {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  font-size: 12px;
+  color: var(--inp-c);
+  width: 100%;
+  padding: 5px 0;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.note-i:focus { border-bottom-color: var(--accent); }
+
+/* ── 规范七：按钮——border-radius: 6px ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;             /* 规范七 */
+  border-radius: 6px;            /* 规范七：严格 6px */
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--t2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;   /* 规范七 */
+  font-family: inherit;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--hv);
+  border-color: #CCCCCC;
+  color: var(--t1);
+}
+/* 规范七：主按钮 */
+.btn-p {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+.btn-p:hover { background: var(--accent-hv); }
+
+/* ── 规范八：三列布局 1fr 1fr 1.5fr ── */
+.g3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  gap: 16px;
+  align-items: start;
+}
+.stk { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── 规范九：同步状态胶囊 ── */
+.spill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;           /* 规范九：药丸形 */
+  font-size: 11px;
+  font-weight: 500;
+}
+.spill-ok  { background: #EDFBF4; color: var(--up); }   /* 规范九 */
+.spill-ing { background: var(--accent-lt); color: var(--accent); }
+
+/* ── 规范十一：月份选择器面板 ── */
+.mp-wrap { position: relative; }
+.mp-panel {
+  position: absolute;
+  top: calc(100% + 6px); left: 0;
+  z-index: 60;
+  background: var(--card);
+  border-radius: 10px;           /* 规范十一：10px */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); /* 规范十一 */
+  border: 1px solid var(--border);
+  padding: 16px;
+  width: 254px;
+}
+.mp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 14px; font-weight: 700;
+}
+.mp-head button {
+  background: none; border: none;
+  cursor: pointer; color: var(--t2);
+  padding: 4px 8px; border-radius: 4px;
+  font-size: 16px; transition: background 0.15s;
+}
+.mp-head button:hover { background: var(--hv); }
+/* 规范十一：4×3 网格 */
+.mp-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
+.mpc {
+  padding: 9px 0;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 13px; font-weight: 500;
+  position: relative;
+  transition: all 0.15s;
+}
+/* 规范十一：无数据—text3，不可点击 */
+.mpc-off { color: var(--t3); cursor: default; }
+/* 规范十一：有数据—加粗 + 4px 主题色圆点 */
+.mpc-on  { color: var(--t1); font-weight: 700; cursor: pointer; }
+.mpc-on:hover { background: var(--accent-lt); }
+.mpc-on::after {
+  content: '';
+  position: absolute;
+  bottom: 4px; left: 50%;
+  transform: translateX(-50%);
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* 规范十一：选中—主题色背景，白字 */
+.mpc-act {
+  background: var(--accent) !important;
+  color: #fff !important;
+  cursor: pointer;
+}
+.mpc-act::after { background: rgba(255,255,255,0.5) !important; }
+
+/* ── Header 内布局 ── */
+.hd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+/* 规范三：页面标题 19px 700 letter-spacing 3px */
+.hd-title { font-size: 19px; font-weight: 700; letter-spacing: 3px; margin-bottom: 4px; }
+.hd-sub   { font-size: 11px; color: var(--t3); }
+/* 规范三：大数字 22px 700 */
+.big-n {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* KPI 条 */
+.kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  border-top: 1px solid var(--border);
+  margin: 0 -24px -20px;
+}
+.kpi-c {
+  padding: 14px 24px;
+  border-right: 1px solid var(--border);
+}
+.kpi-c:last-child { border-right: none; }
+.kpi-c .kl { font-size: 11px; color: var(--t2); margin-bottom: 4px; }
+.kpi-c .kv { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi-c .ks { font-size: 10px; color: var(--t3); margin-top: 2px; }
 
 /* ── Toolbar ── */
-.toolbar{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:16px 24px;background:var(--card);border-bottom:1px solid var(--border);
-  flex-wrap:wrap;gap:10px;
+.tbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.toolbar-l,.toolbar-r{display:flex;gap:8px;align-items:center;}
+.tbar-l, .tbar-r { display: flex; gap: 8px; align-items: center; }
 
-/* ── Month pills ── */
-.month-pills{display:flex;gap:4px;overflow-x:auto;padding:4px 0;scrollbar-width:none;}
-.month-pills::-webkit-scrollbar{display:none;}
-.mpill{
-  padding:5px 13px;border-radius:20px;font-size:12px;font-weight:500;
-  white-space:nowrap;cursor:pointer;transition:all 0.15s;
-  border:1px solid var(--border);background:var(--card);color:var(--t2);
-  position:relative;
+/* ── 纪律行 ── */
+.rl-r {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid #F5F5F5;
 }
-.mpill:hover{background:var(--hover);border-color:#b0bec5;color:var(--t1);}
-.mpill.active{background:var(--navy);color:#fff;border-color:var(--navy);}
-.mpill.has-data{color:var(--t1);font-weight:600;}
-.mpill.has-data::after{
-  content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
-  width:4px;height:4px;border-radius:50%;background:var(--gold);
+.rl-r:last-child { border-bottom: none; }
+.badge {
+  font-size: 11px; font-weight: 600;
+  padding: 2px 10px; border-radius: 20px;
 }
-.mpill.active::after{background:rgba(255,255,255,0.5);}
+.bd-ok  { background: var(--th-bg); color: var(--t3); }
+.bd-bad { background: var(--down-bg); color: var(--down); }
 
-/* Month panel */
-.month-picker-wrap{position:relative;}
-.month-panel{
-  position:absolute;top:calc(100% + 8px);left:0;z-index:60;
-  background:var(--card);border-radius:var(--radius);border:1px solid var(--border);
-  box-shadow:var(--shadow-lg);padding:16px;width:260px;
+/* ── 规范十：Modal ── */
+.ovl {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
 }
-.month-panel-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:14px;font-weight:700;}
-.month-panel-hd button{background:none;border:none;cursor:pointer;color:var(--t2);padding:4px 8px;border-radius:6px;font-size:16px;}
-.month-panel-hd button:hover{background:var(--hover);}
-.mpanel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
-.mpc{padding:9px 0;border-radius:8px;text-align:center;cursor:pointer;font-size:12px;font-weight:500;color:var(--t2);position:relative;transition:all 0.15s;}
-.mpc:hover{background:var(--hover);}
-.mpc.active{background:var(--navy);color:#fff;}
-.mpc.has-data{color:var(--t1);font-weight:700;}
-.mpc.has-data::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gold);}
-.mpc.active::after{background:rgba(255,255,255,0.4);}
-
-/* ── Buttons ── */
-.btn{
-  display:inline-flex;align-items:center;gap:5px;padding:8px 16px;
-  border-radius:var(--radius-sm);border:1px solid var(--border);
-  background:var(--card);color:var(--t2);font-size:13px;font-weight:500;
-  cursor:pointer;transition:all 0.15s;font-family:inherit;white-space:nowrap;
+.modal {
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  max-width: 520px; width: 100%;
+  max-height: 82vh; overflow-y: auto;
+  padding: 28px 32px;
 }
-.btn:hover{background:var(--hover);border-color:#adb5bd;color:var(--t1);box-shadow:0 1px 4px rgba(0,0,0,0.05);}
-.btn-primary{background:var(--gold);color:#fff;border-color:var(--gold);font-weight:600;}
-.btn-primary:hover{background:var(--gold-dk);border-color:var(--gold-dk);box-shadow:0 2px 12px rgba(232,168,56,0.4);}
-.btn-ghost{background:transparent;border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);}
-.btn-ghost:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.3);color:#fff;}
-.btn-sm{padding:6px 12px;font-size:12px;}
-.btn-icon{padding:7px 10px;}
-
-/* ── Content area ── */
-.content{padding:20px 24px 0;}
-
-/* ── Cards ── */
-.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:22px 24px;transition:box-shadow 0.2s;}
-.card:hover{box-shadow:0 4px 20px rgba(0,0,0,0.09);}
-.card-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:16px;}
-
-/* ── Grid ── */
-.grid3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:16px;margin-bottom:16px;}
-.stack{display:flex;flex-direction:column;gap:16px;}
-
-/* ── Tables ── */
-table{border-collapse:collapse;width:100%;}
-th{
-  background:transparent;color:var(--t3);font-size:11px;font-weight:500;
-  letter-spacing:0.4px;padding:0 14px 10px;text-align:right;
-  border-bottom:2px solid var(--border-lt);white-space:nowrap;
+.modal-h {
+  font-size: 16px; font-weight: 700;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
 }
-th:first-child{text-align:left;}
-td{
-  padding:11px 14px;border-bottom:1px solid var(--border-lt);font-size:13px;
-  font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--t1);
+.mlbl {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--t3);
+  margin: 16px 0 8px;
 }
-td:first-child{text-align:left;}
-tbody tr:last-child td{border-bottom:none;}
-tbody tr:hover td{background:#FAFBFD;}
-.n{text-align:center!important;color:var(--t3);font-size:11px;width:28px;}
-
-/* Total row */
-.trow td{
-  border-top:2px solid var(--border);border-bottom:none!important;
-  background:var(--emerald-lt);color:var(--emerald);font-weight:700;
+.mlbl:first-of-type { margin-top: 0; }
+.mi {
+  width: 100%; padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px; font-family: inherit;
+  outline: none; background: var(--card);
+  transition: border-color 0.15s;
 }
-.trow td:first-child{color:var(--t1);}
+.mi:focus { border-color: var(--accent); }
+.mfoot {
+  border-top: 1px solid var(--border);
+  padding-top: 16px; margin-top: 18px;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
 
-/* Input cells */
-.ic{background:var(--inp-bg);}
-.ic input{border:none;background:transparent;color:var(--inp-c);font-size:13px;font-family:inherit;font-variant-numeric:tabular-nums;text-align:right;width:100%;min-width:68px;outline:none;padding:0;}
-.ic input::placeholder{color:var(--t3);}
-
-/* ── Rule rows ── */
-.rule-r{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-lt);}
-.rule-r:last-child{border-bottom:none;}
-.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;}
-.badge-red{background:var(--rose-lt);color:var(--rose);}
-.badge-gray{background:var(--border-lt);color:var(--t3);}
-
-/* ── Notes input ── */
-.note-inp{border:none;border-bottom:1px solid var(--border);background:transparent;font-size:12px;color:var(--inp-c);width:100%;padding:5px 0;outline:none;font-family:inherit;transition:border-color 0.15s;}
-.note-inp:focus{border-bottom-color:var(--gold);}
-
-/* ── Sync pill ── */
-.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:500;}
-.pill-ok{background:var(--emerald-lt);color:var(--emerald);}
-.pill-ing{background:var(--gold-lt);color:var(--gold-dk);}
-
-/* ── Modal ── */
-.overlay{position:fixed;inset:0;background:rgba(10,22,40,0.5);backdrop-filter:blur(6px);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;}
-.modal{background:var(--card);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);max-width:520px;width:100%;max-height:86vh;overflow-y:auto;padding:28px 32px;}
-.modal-h{font-size:17px;font-weight:700;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:20px;}
-.modal-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t2);margin-bottom:8px;margin-top:18px;}
-.modal-label:first-child{margin-top:0;}
-.modal-inp{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:border-color 0.15s;background:var(--card);}
-.modal-inp:focus{border-color:var(--gold);}
-.modal-foot{border-top:1px solid var(--border);padding-top:16px;margin-top:20px;display:flex;gap:8px;justify-content:flex-end;}
-
-/* ── Version list ── */
-.ver-wrap{max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;}
-.ver-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border-lt);cursor:pointer;font-size:12px;transition:background 0.15s;}
-.ver-row:hover{background:var(--hover);}
-.ver-row:last-child{border-bottom:none;}
+/* ── 版本列表 ── */
+.vbox { max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.vrow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px; border-bottom: 1px solid #F5F5F5;
+  cursor: pointer; font-size: 12px; transition: background 0.15s;
+}
+.vrow:hover { background: var(--hv); }
+.vrow:last-child { border-bottom: none; }
 
 /* ── Footer ── */
-.foot{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;margin-top:8px;border-top:1px dashed var(--border);flex-wrap:wrap;gap:8px;}
-.foot-l,.foot-r{display:flex;gap:6px;}
-
-/* ── Responsive ── */
-@media(max-width:800px){
-  .grid3{grid-template-columns:1fr;}
-  .hero-top{flex-direction:column;}
-  .hero-kpi-box{width:100%;text-align:left;}
-  .kpi-strip{grid-template-columns:repeat(2,1fr);}
-  .hero{padding:22px 20px 0;}
-  .toolbar,.content,.foot{padding-left:16px;padding-right:16px;}
+.fbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-top: 1px dashed var(--border);
+  margin-top: 4px; flex-wrap: wrap; gap: 8px;
 }
-@media(max-width:480px){
-  .kpi-strip{grid-template-columns:1fr 1fr;}
-  .kpi-cell{padding:14px 16px;}
+.fl, .fr { display: flex; gap: 6px; }
+
+/* ── 规范八：响应式断点 ── */
+@media (max-width: 960px) { .g3 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) {
+  .g3 { grid-template-columns: 1fr; }
+  .hd-row { flex-direction: column; }
+  .kpi-bar { grid-template-columns: 1fr 1fr; }
+  .page { padding: 12px 12px 48px; }
+  .card { padding: 16px; }
+  .kpi-c { padding: 12px 16px; }
 }
 `;
 
-/* ─── LOGIN ─── */
-function Login({onLogin}) {
-  const [pin,setPin]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [err,setErr]=useState("");
-
-  const go=async()=>{
-    if(pin.length<4){setErr("至少 4 位");return;}
-    setLoading(true);setErr("");
-    try{
-      const cloud=await cloudLoad(pin);
-      const d=cloud?merge(cloud):merge(localLoad());
-      savePin(pin);localSave(d);
-      if(!cloud) try{await cloudSave(pin,d);}catch{}
+/* ── LOGIN ── */
+function Login({ onLogin }) {
+  const [pin,setPin]=useState(""); const [loading,setLoading]=useState(false); const [err,setErr]=useState("");
+  const go = async () => {
+    if (pin.length<4){setErr("至少 4 位数字");return;}
+    setLoading(true); setErr("");
+    try {
+      const c=await cloudLoad(pin); const d=c?merge(c):merge(localLoad());
+      savePin(pin); localSave(d);
+      if(!c) try{await cloudSave(pin,d);}catch{}
       onLogin(pin,d);
-    }catch{savePin(pin);onLogin(pin,merge(localLoad()));}
+    } catch { savePin(pin); onLogin(pin,merge(localLoad())); }
     setLoading(false);
   };
-
-  return(
+  return (
     <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <style>{CSS}</style>
-      <div className="card" style={{width:"100%",maxWidth:360,textAlign:"center",padding:"40px 32px"}}>
-        <div style={{width:52,height:52,background:"linear-gradient(135deg,var(--navy),var(--navy3))",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 20px"}}>🐷</div>
-        <div style={{fontSize:18,fontWeight:700,letterSpacing:1.5,marginBottom:6}}>小博现金流实验室</div>
-        <div style={{fontSize:12,color:"var(--t3)",marginBottom:28}}>输入 PIN 码 · 多设备同步</div>
+      <div className="card card-ph" style={{width:"100%",maxWidth:360,textAlign:"center",padding:"36px 32px"}}>
+        <div className="hd-title" style={{letterSpacing:2,marginBottom:6}}>小博现金流实验室</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:28}}>输入 PIN 码 · 多设备同步</div>
         <input type="password" inputMode="numeric" value={pin}
           onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,8))}
           onKeyDown={e=>e.key==="Enter"&&go()} placeholder="4–8 位数字"
-          style={{width:"100%",textAlign:"center",fontSize:22,fontVariantNumeric:"tabular-nums",letterSpacing:12,padding:"12px 0",border:"none",borderBottom:"2px solid var(--border)",outline:"none",background:"transparent",fontFamily:"inherit",marginBottom:err?8:20,transition:"border-color 0.2s"}}
-          onFocus={e=>e.target.style.borderBottomColor="var(--gold)"}
+          style={{width:"100%",textAlign:"center",fontSize:22,fontVariantNumeric:"tabular-nums",letterSpacing:10,
+                  padding:"10px 0",border:"none",borderBottom:"2px solid var(--border)",outline:"none",
+                  background:"transparent",fontFamily:"inherit",transition:"border-color 0.15s"}}
+          onFocus={e=>e.target.style.borderBottomColor="var(--accent)"}
           onBlur={e=>e.target.style.borderBottomColor="var(--border)"}
         />
-        {err&&<div style={{color:"var(--rose)",fontSize:12,marginBottom:12}}>{err}</div>}
-        <button className="btn btn-primary" style={{width:"100%",padding:"12px 0",fontSize:14,borderRadius:10,justifyContent:"center"}} onClick={go} disabled={loading}>
+        {err&&<div style={{color:"var(--down)",fontSize:11,marginTop:8}}>{err}</div>}
+        <button className="btn btn-p" style={{width:"100%",padding:"10px 0",fontSize:14,justifyContent:"center",marginTop:20}} onClick={go} disabled={loading}>
           {loading?"连接中...":"进入"}
         </button>
-        <div style={{fontSize:10,color:"var(--t3)",marginTop:20,lineHeight:1.9}}>
-          首次输入即注册<br/>同一 PIN = 任何设备 = 同一份数据
-        </div>
+        <div style={{fontSize:10,color:"var(--t3)",marginTop:20,lineHeight:1.9}}>首次输入即注册 · 同一 PIN = 任何设备 = 同一份数据</div>
       </div>
     </div>
   );
 }
 
-/* ─── MAIN ─── */
+/* ── MAIN APP ── */
 export default function App() {
   const [pin,setPin]=useState(getSavedPin());
   const [data,setData]=useState(null);
   const [loggedIn,setLoggedIn]=useState(false);
-  const [em,setEm]=useState(CM); // editMonth
+  const [em,setEm]=useState(CM);
   const [syncing,setSyncing]=useState(false);
   const [toast,setToast]=useState("");
   const [modal,setModal]=useState(null);
   const [showPicker,setShowPicker]=useState(false);
   const [versions,setVersions]=useState([]);
   const [sheetsUrl,setSheetsUrlLocal]=useState(()=>getSheetsUrl());
-  const fileRef=useRef(null);
-  const syncTimer=useRef(null);
+  const fileRef=useRef(null); const syncTimer=useRef(null);
 
-  // Auto-login: local first, cloud silent sync
   useEffect(()=>{
     if(pin){
-      const local=merge(localLoad());setData(local);setLoggedIn(true);
-      (async()=>{
-        try{const c=await cloudLoad(pin);if(c){const d=merge(c);localSave(d);setData(d);}}catch{}
-      })();
+      const local=merge(localLoad()); setData(local); setLoggedIn(true);
+      (async()=>{ try{ const c=await cloudLoad(pin); if(c){const d=merge(c);localSave(d);setData(d);} }catch{} })();
     }
   },[]);
 
-  const toast2=(msg)=>{setToast(msg);setTimeout(()=>setToast(""),2200);};
+  const showToast=(msg)=>{ setToast(msg); setTimeout(()=>setToast(""),2200); };
 
   const save=useCallback((d)=>{
-    setData(d);localSave(d);
+    setData(d); localSave(d);
     if(syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current=setTimeout(async()=>{
-      if(!pin) return;setSyncing(true);
+      if(!pin) return; setSyncing(true);
       try{await cloudSave(pin,d);}catch(e){console.warn(e);}
       setSyncing(false);
     },2000);
   },[pin]);
 
-  const handleLogin=(p,d)=>{setPin(p);setData(d);setLoggedIn(true);};
-
   const handleImport=e=>{
-    const f=e.target.files?.[0];if(!f)return;
+    const f=e.target.files?.[0]; if(!f) return;
     const r=new FileReader();
-    r.onload=ev=>{try{const i=JSON.parse(ev.target.result);if(i.monthly&&i.sources){save({...empty(),...i});toast2("导入成功");}else toast2("格式错误");}catch{toast2("导入失败");}};
-    r.readAsText(f);e.target.value="";
+    r.onload=ev=>{
+      try{const i=JSON.parse(ev.target.result); if(i.monthly&&i.sources){save({...empty(),...i});showToast("导入成功");}else showToast("格式错误");}
+      catch{showToast("导入失败");}
+    };
+    r.readAsText(f); e.target.value="";
   };
 
-  const openVersions=async()=>{
-    setModal("versions");
-    try{setVersions(await cloudGetVersions(pin));}catch{setVersions([]);}
-  };
-
+  const openVersions=async()=>{ setModal("versions"); try{setVersions(await cloudGetVersions(pin));}catch{setVersions([]);} };
   const restoreVer=async(id,label)=>{
     if(!confirm(`恢复到 ${label}？`)) return;
-    try{const r=await cloudRestoreVersion(pin,id);if(r){save(merge(r));toast2("已恢复");setModal(null);}}catch{toast2("恢复失败");}
+    try{ const r=await cloudRestoreVersion(pin,id); if(r){save(merge(r));showToast("已恢复");setModal(null);} }catch{showToast("恢复失败");}
   };
 
-  if(!loggedIn&&!pin) return <Login onLogin={handleLogin}/>;
-  if(!data) return (
-    <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <style>{CSS}</style>
-      <span style={{color:"var(--t3)",fontSize:14}}>加载中...</span>
-    </div>
-  );
+  if(!loggedIn&&!pin) return <Login onLogin={(p,d)=>{setPin(p);setData(d);setLoggedIn(true);}}/>;
+  if(!data) return <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{CSS}</style><span style={{color:"var(--t3)"}}>加载中...</span></div>;
 
-  // Computed
-  const mt=data.monthly.map(m=>SOURCES.reduce((s,src)=>s+(m[src.id]||0),0));
-  const ytd=mt.reduce((a,b)=>a+b,0);
+  /* computed */
+  const mt  =data.monthly.map(m=>SOURCES.reduce((s,src)=>s+(m[src.id]||0),0));
+  const ytd =mt.reduce((a,b)=>a+b,0);
   const avgCF=ytd/(CM+1);
   const totalP=SOURCES.reduce((a,s)=>a+(data.sources[s.id]?.principal||0),0);
   const ytdDCA=data.dca.reduce((a,d)=>a+(d.amount||0),0);
   const sYTD=SOURCES.map(s=>data.monthly.reduce((a,m)=>a+(m[s.id]||0),0));
   const bestIdx=sYTD.indexOf(Math.max(...sYTD));
 
-  const lb=data.labels||empty().labels;
-  const sn=(i)=>lb.sources?.[i]||SOURCES[i]?.name||`来源${i+1}`;
-  const rn=(i)=>lb.rules?.[i]||RULES[i]||`规则${i+1}`;
+  const lb =data.labels||empty().labels;
+  const sn =(i)=>lb.sources?.[i]||SOURCES[i]?.name||`来源${i+1}`;
+  const rn =(i)=>lb.rules?.[i]||RULES[i]||`规则${i+1}`;
   const sec=(k)=>lb.sections?.[k]||k;
 
-  const SETTINGS_INPUT={width:"100%",padding:"9px 12px",border:"1px solid var(--border)",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"};
-
-  return(
+  return (
     <div>
       <style>{CSS}</style>
       <input ref={fileRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
+      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"var(--t1)",color:"#fff",padding:"8px 20px",borderRadius:8,fontSize:13,zIndex:200,boxShadow:"0 4px 16px rgba(0,0,0,0.15)",pointerEvents:"none"}}>{toast}</div>}
 
-      {/* Toast */}
-      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"var(--navy)",color:"#fff",padding:"9px 22px",borderRadius:10,fontSize:13,zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,0.18)",pointerEvents:"none"}}>{toast}</div>}
+      <div className="page">
 
-      <div className="wrap">
-
-        {/* ─── HERO ─── */}
-        <div className="hero">
-          <div className="hero-top">
-            <div className="hero-brand">
-              <div className="brand-title">小博现金流实验室</div>
-              <div className="brand-sub">{YEAR} · 工资全存，花钱靠现金流</div>
+        {/* ══ 主标题卡片（规范四：card-ph = 3px 橙顶 + 稍重阴影） ══ */}
+        <div className="card card-ph">
+          <div className="hd-row">
+            <div>
+              {/* 规范三：19px 700 letter-spacing 3px */}
+              <div className="hd-title">小博现金流实验室</div>
+              <div className="hd-sub">{YEAR} · 工资全存 · 花钱靠现金流</div>
             </div>
-            <div className="hero-kpi-box">
-              <div className="hk-label">年度总流入</div>
-              <div className="hk-val">{fmtUSD(ytd)}</div>
-              <div className="hk-sub">{bestIdx>=0&&sYTD[bestIdx]>0?`最大：${sn(bestIdx)}`:"暂无数据"}</div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>年度总流入</div>
+              {/* 规范三：大数字 22px 700 */}
+              <div className="big-n" style={{color:ytd>0?"var(--up)":"var(--t1)"}}>{F$(ytd)}</div>
+              {bestIdx>=0&&sYTD[bestIdx]>0&&<div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>最大：{sn(bestIdx)}</div>}
             </div>
           </div>
-
-          <div className="kpi-strip">
-            <div className="kpi-cell">
-              <div className="kc-label">月均流入</div>
-              <div className="kc-val">{fmtUSD(Math.round(avgCF))}</div>
-              <div className="kc-sub">{MO[em]}：{fmtUSD(mt[em])}</div>
+          {/* KPI 条 */}
+          <div className="kpi-bar">
+            <div className="kpi-c">
+              <div className="kl">月均流入</div>
+              <div className="kv">{F$(Math.round(avgCF))}</div>
+              <div className="ks">{MO[em]}：{F$(mt[em])}</div>
             </div>
-            <div className="kpi-cell">
-              <div className="kc-label">总投入本金</div>
-              <div className="kc-val">{fmtUSD(totalP)}</div>
-              <div className="kc-sub">年度定投：{fmtUSD(ytdDCA)}</div>
+            <div className="kpi-c">
+              <div className="kl">总投入本金</div>
+              <div className="kv">{F$(totalP)}</div>
+              <div className="ks">年度定投：{F$(ytdDCA)}</div>
             </div>
-            <div className="kpi-cell">
-              <div className="kc-label">综合年化</div>
-              <div className="kc-val" style={{color:totalP>0&&ytd>0?"var(--gold)":"rgba(255,255,255,0.3)"}}>
-                {totalP>0?fmtPct(ytd/totalP):"—"}
-              </div>
-              <div className="kc-sub">{data.violations.length===0?"纪律良好 ✓":`违纪 ${data.violations.length} 次`}</div>
+            <div className="kpi-c">
+              <div className="kl">综合年化</div>
+              <div className="kv" style={{color:totalP>0&&ytd>0?"var(--accent)":"var(--t3)"}}>{totalP>0?Fp(ytd/totalP):"—"}</div>
+              <div className="ks">{data.violations.length===0?"纪律良好 ✓":`违纪 ${data.violations.length} 次`}</div>
             </div>
           </div>
         </div>
 
-        {/* ─── TOOLBAR ─── */}
-        <div className="toolbar">
-          <div className="toolbar-l">
-            {/* Month picker dropdown */}
-            <div className="month-picker-wrap">
+        {/* ══ Toolbar ══ */}
+        <div className="tbar">
+          <div className="tbar-l">
+            {/* 规范十一：自定义月份选择器，不用原生 select */}
+            <div className="mp-wrap">
               <button className="btn" onClick={()=>setShowPicker(!showPicker)}>
                 📅 {MO[em]}
-                {mt[em]>0&&<span style={{fontSize:11,color:"var(--emerald)",fontWeight:600}}>{fmtUSD(mt[em])}</span>}
+                {mt[em]>0&&<span style={{fontSize:11,color:"var(--up)",fontWeight:600}}>{F$(mt[em])}</span>}
                 <span style={{fontSize:10,color:"var(--t3)"}}>▾</span>
               </button>
               {showPicker&&<>
                 <div style={{position:"fixed",inset:0,zIndex:59}} onClick={()=>setShowPicker(false)}/>
-                <div className="month-panel">
-                  <div className="month-panel-hd">
-                    <button>‹</button><span>{YEAR} 年</span><button>›</button>
+                <div className="mp-panel">
+                  <div className="mp-head">
+                    <button onClick={e=>e.stopPropagation()}>‹</button>
+                    <span>{YEAR} 年</span>
+                    <button onClick={e=>e.stopPropagation()}>›</button>
                   </div>
-                  <div className="mpanel-grid">
-                    {MO.map((m,i)=>(
-                      <div key={i} className={`mpc${em===i?" active":""}${mt[i]>0?" has-data":""}`}
-                        onClick={()=>{setEm(i);setShowPicker(false);}}>{m}</div>
-                    ))}
+                  {/* 规范十一：4×3 网格 */}
+                  <div className="mp-grid">
+                    {MO.map((m,i)=>{
+                      const on=mt[i]>0; const act=em===i;
+                      return <div key={i}
+                        className={`mpc ${act?"mpc-act":on?"mpc-on":"mpc-off"}`}
+                        onClick={on||act?()=>{setEm(i);setShowPicker(false);}:undefined}>{m}</div>;
+                    })}
                   </div>
                 </div>
               </>}
             </div>
-            <button className="btn btn-primary" onClick={()=>{}}>✏️ 修改 {MO[em]}</button>
+            <button className="btn btn-p">✏️ 修改 {MO[em]}</button>
           </div>
-          <div className="toolbar-r">
-            <span className={`pill ${syncing?"pill-ing":"pill-ok"}`}>
-              {syncing?"⏳ 同步中":"✓ 已同步"}
-            </span>
-            <button className="btn btn-icon btn-sm" title="版本历史" onClick={openVersions}>🕐</button>
-            <button className="btn btn-icon btn-sm" title="设置" onClick={()=>setModal("settings")}>⚙️</button>
+          <div className="tbar-r">
+            {/* 规范九：胶囊，border-radius 20px */}
+            <span className={`spill ${syncing?"spill-ing":"spill-ok"}`}>{syncing?"⏳ 同步中":"✓ 已同步"}</span>
+            <button className="btn" style={{padding:"7px 10px"}} title="版本历史" onClick={openVersions}>🕐</button>
+            <button className="btn" style={{padding:"7px 10px"}} title="设置" onClick={()=>setModal("settings")}>⚙️</button>
           </div>
         </div>
 
-        {/* ─── CONTENT ─── */}
-        <div className="content">
+        {/* ══ 规范八：三列 1fr 1fr 1.5fr ══ */}
+        <div className="g3">
 
-          {/* Month pills (quick nav) */}
-          <div className="month-pills" style={{marginBottom:16}}>
-            {MO.map((m,i)=>(
-              <div key={i} className={`mpill${em===i?" active":""}${mt[i]>0?" has-data":""}`}
-                onClick={()=>setEm(i)}>{m}</div>
-            ))}
-          </div>
-
-          {/* ─── 3-col grid ─── */}
-          <div className="grid3">
-
-            {/* Col 1: Cashflow Entry */}
-            <div className="card">
-              <div className="card-title">{MO[em]} · {sec("cashflow")}</div>
-              <table>
-                <thead><tr>
-                  <th className="n">#</th>
-                  <th style={{textAlign:"left"}}>来源</th>
-                  <th>本月收入</th>
-                  <th>YTD</th>
-                </tr></thead>
-                <tbody>
-                  {SOURCES.map((s,i)=>(
-                    <tr key={s.id}>
-                      <td className="n">{i+1}</td>
-                      <td style={{textAlign:"left",fontWeight:500}}>{sn(i)}</td>
-                      <td className="ic">
-                        <input type="number" value={data.monthly[em]?.[s.id]||""} placeholder="0"
-                          onChange={e=>{const m=[...data.monthly];m[em]={...m[em],[s.id]:parseFloat(e.target.value)||0};save({...data,monthly:m});}}/>
-                      </td>
-                      <td style={{color:sYTD[i]>0?"var(--t1)":"var(--t3)",fontWeight:sYTD[i]>0?600:400}}>{fmtUSD(sYTD[i])}</td>
-                    </tr>
-                  ))}
-                  <tr className="trow">
-                    <td className="n"></td>
-                    <td style={{textAlign:"left"}}>合计</td>
-                    <td style={{color:mt[em]>0?"var(--emerald)":"var(--t3)"}}>{fmtUSD(mt[em])}</td>
-                    <td style={{color:ytd>0?"var(--emerald)":"var(--t3)"}}>{fmtUSD(ytd)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Col 2: DCA + Discipline */}
-            <div className="stack">
-              <div className="card">
-                <div className="card-title">{MO[em]} · {sec("dca")}</div>
-                <table>
-                  <thead><tr>
-                    <th style={{textAlign:"left"}}>金额</th>
-                    <th style={{textAlign:"left"}}>备注</th>
-                  </tr></thead>
-                  <tbody>
-                    <tr>
-                      <td className="ic" style={{width:90}}>
-                        <input type="number" value={data.dca[em]?.amount||""} placeholder="0"
-                          onChange={e=>{const d=[...data.dca];d[em]={...d[em],amount:parseFloat(e.target.value)||0};save({...data,dca:d});}}/>
-                      </td>
-                      <td style={{textAlign:"left",padding:"4px 14px"}}>
-                        <input className="note-inp" type="text" value={data.dca[em]?.note||""} placeholder="这个月买了什么"
-                          onChange={e=>{const d=[...data.dca];d[em]={...d[em],note:e.target.value};save({...data,dca:d});}}/>
-                      </td>
-                    </tr>
-                    <tr className="trow">
-                      <td style={{textAlign:"left",color:"var(--t1)"}}>年合计</td>
-                      <td style={{textAlign:"left",color:ytdDCA>0?"var(--emerald)":"var(--t3)"}}>{fmtUSD(ytdDCA)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="card" style={{flex:1}}>
-                <div className="card-title">{sec("discipline")}</div>
-                {RULES.map((_,i)=>{
-                  const cnt=data.violations.filter(v=>v.rule===i).length;
-                  return(
-                    <div className="rule-r" key={i}>
-                      <span style={{fontSize:12,fontWeight:500,color:cnt>0?"var(--rose)":"var(--t1)"}}>{rn(i)}</span>
-                      <span className={`badge ${cnt>0?"badge-red":"badge-gray"}`}>{cnt} 次</span>
-                    </div>
-                  );
-                })}
-                <button className="btn btn-sm" style={{width:"100%",marginTop:12,justifyContent:"center",fontSize:12}} onClick={()=>{
-                  const r=prompt("违反了哪条？(1/2/3)");
-                  const idx=parseInt(r)-1;
-                  if(idx>=0&&idx<=2){const note=prompt("原因：")||"";save({...data,violations:[...data.violations,{rule:idx,date:new Date().toISOString().slice(0,10),note}]});}
-                }}>📝 记录违反</button>
-              </div>
-            </div>
-
-            {/* Col 3: Principal */}
-            <div className="card">
-              <div className="card-title">{sec("principal")}</div>
-              <table>
-                <thead><tr>
-                  <th style={{textAlign:"left"}}>来源</th>
-                  <th>本金</th>
-                  <th>年化</th>
-                </tr></thead>
-                <tbody>
-                  {SOURCES.map((s,i)=>{
-                    const sc=data.sources[s.id]||{};
-                    const yld=sc.principal>0?sYTD[i]/sc.principal:0;
-                    return(
-                      <tr key={s.id}>
-                        <td style={{textAlign:"left",fontWeight:500,fontSize:12}}>{sn(i)}</td>
-                        <td className="ic">
-                          <input type="number" value={sc.principal||""} placeholder="0"
-                            onChange={e=>save({...data,sources:{...data.sources,[s.id]:{...sc,principal:parseFloat(e.target.value)||0}}})}/>
-                        </td>
-                        <td style={{color:yld>0?"var(--gold)":"var(--t3)",fontWeight:700}}>{fmtPct(yld)}</td>
-                      </tr>
-                    );
-                  })}
-                  <tr className="trow">
-                    <td style={{textAlign:"left",color:"var(--t1)"}}>合计</td>
-                    <td style={{color:"var(--emerald)"}}>{fmtUSD(totalP)}</td>
-                    <td style={{color:"var(--gold)"}}>{totalP>0?fmtPct(ytd/totalP):"—"}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* ─── Monthly Overview ─── */}
+          {/* 列 1：现金流录入 */}
           <div className="card">
-            <div className="card-title">{sec("overview")}</div>
-            <div style={{overflowX:"auto"}}>
-              <table style={{minWidth:720}}>
+            <div className="lbl">{MO[em]} · {sec("cashflow")}</div>
+            <table>
+              <thead><tr>
+                <th className="seq">#</th>
+                <th style={{textAlign:"left"}}>来源</th>
+                <th>本月收入</th>
+                <th>YTD</th>
+              </tr></thead>
+              <tbody>
+                {SOURCES.map((s,i)=>(
+                  <tr key={s.id}>
+                    <td className="seq">{i+1}</td>
+                    <td style={{fontWeight:500}}>{sn(i)}</td>
+                    <td className="ic">
+                      <input type="number" value={data.monthly[em]?.[s.id]||""} placeholder="0"
+                        onChange={e=>{const m=[...data.monthly];m[em]={...m[em],[s.id]:parseFloat(e.target.value)||0};save({...data,monthly:m});}}/>
+                    </td>
+                    <td style={{color:sYTD[i]>0?"var(--t1)":"var(--t3)",fontWeight:sYTD[i]>0?600:400}}>{F$(sYTD[i])}</td>
+                  </tr>
+                ))}
+                <tr className="tr-total">
+                  <td className="seq"></td>
+                  <td className="td-name">合计</td>
+                  <td>{F$(mt[em])}</td>
+                  <td>{F$(ytd)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* 列 2：定投 + 纪律（上下叠放，规范八虚线分隔） */}
+          <div className="stk">
+            <div className="card">
+              <div className="lbl">{MO[em]} · {sec("dca")}</div>
+              <table>
                 <thead><tr>
-                  <th style={{textAlign:"left",position:"sticky",left:0,background:"var(--card)",zIndex:1,minWidth:108}}>来源</th>
-                  {MO.map((m,i)=>(
-                    <th key={i} style={{cursor:"pointer",color:em===i?"var(--gold)":undefined,minWidth:52}} onClick={()=>setEm(i)}>{m}</th>
-                  ))}
-                  <th style={{minWidth:60}}>合计</th>
+                  <th style={{textAlign:"left"}}>金额</th>
+                  <th style={{textAlign:"left"}}>备注</th>
                 </tr></thead>
                 <tbody>
-                  {SOURCES.map((s,si)=>(
-                    <tr key={s.id}>
-                      <td style={{textAlign:"left",fontWeight:500,position:"sticky",left:0,background:"var(--card)",zIndex:1}}>{sn(si)}</td>
-                      {MO.map((_,i)=>{
-                        const v=data.monthly[i]?.[s.id]||0;
-                        return <td key={i} style={{color:v>0?"var(--t1)":"var(--t3)",background:i===em?"var(--inp-bg)":undefined,fontWeight:v>0?500:400}}>{v>0?fmtNum(v):"—"}</td>;
-                      })}
-                      <td style={{fontWeight:600,color:sYTD[si]>0?"var(--t1)":"var(--t3)"}}>{fmtNum(sYTD[si])}</td>
-                    </tr>
-                  ))}
-                  <tr className="trow">
-                    <td style={{textAlign:"left",color:"var(--t1)",position:"sticky",left:0,background:"var(--emerald-lt)",zIndex:1,fontWeight:700}}>现金流合计</td>
-                    {MO.map((_,i)=>(
-                      <td key={i} style={{background:i===em?"#C6F0DC":undefined,fontWeight:700}}>
-                        {mt[i]>0?fmtNum(mt[i]):"—"}
-                      </td>
-                    ))}
-                    <td style={{fontWeight:700}}>{fmtNum(ytd)}</td>
-                  </tr>
                   <tr>
-                    <td style={{textAlign:"left",color:"var(--t2)",position:"sticky",left:0,background:"var(--card)",zIndex:1}}>定投</td>
-                    {MO.map((_,i)=>{const v=data.dca[i]?.amount||0;return <td key={i} style={{color:v>0?"var(--t2)":"var(--t3)"}}>{v>0?fmtNum(v):"—"}</td>;})}
-                    <td style={{fontWeight:600,color:"var(--t2)"}}>{fmtNum(ytdDCA)}</td>
+                    <td className="ic" style={{width:86}}>
+                      <input type="number" value={data.dca[em]?.amount||""} placeholder="0"
+                        onChange={e=>{const d=[...data.dca];d[em]={...d[em],amount:parseFloat(e.target.value)||0};save({...data,dca:d});}}/>
+                    </td>
+                    <td style={{textAlign:"left",padding:"4px 12px"}}>
+                      <input className="note-i" type="text" value={data.dca[em]?.note||""} placeholder="这个月买了什么"
+                        onChange={e=>{const d=[...data.dca];d[em]={...d[em],note:e.target.value};save({...data,dca:d});}}/>
+                    </td>
+                  </tr>
+                  <tr className="tr-total">
+                    <td className="td-name">年合计</td>
+                    <td style={{textAlign:"left"}}>{F$(ytdDCA)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+
+            <div className="card">
+              <div className="lbl">{sec("discipline")}</div>
+              {RULES.map((_,i)=>{
+                const cnt=data.violations.filter(v=>v.rule===i).length;
+                return <div className="rl-r" key={i}>
+                  <span style={{fontSize:13,fontWeight:500,color:cnt>0?"var(--down)":"var(--t1)"}}>{rn(i)}</span>
+                  <span className={`badge ${cnt>0?"bd-bad":"bd-ok"}`}>{cnt} 次</span>
+                </div>;
+              })}
+              <button className="btn" style={{width:"100%",marginTop:12,justifyContent:"center",fontSize:12}} onClick={()=>{
+                const r=prompt("违反了哪条？(1/2/3)"); const idx=parseInt(r)-1;
+                if(idx>=0&&idx<=2){const note=prompt("原因：")||"";save({...data,violations:[...data.violations,{rule:idx,date:new Date().toISOString().slice(0,10),note}]});}
+              }}>📝 记录违反</button>
+            </div>
+          </div>
+
+          {/* 列 3（1.5fr）：本金 & 年化 */}
+          <div className="card">
+            <div className="lbl">{sec("principal")}</div>
+            <table>
+              <thead><tr>
+                <th className="seq">#</th>
+                <th style={{textAlign:"left"}}>来源</th>
+                <th>本金 ($)</th>
+                <th>h/月</th>
+                <th>YTD</th>
+                <th>年化</th>
+              </tr></thead>
+              <tbody>
+                {SOURCES.map((s,i)=>{
+                  const sc=data.sources[s.id]||{};
+                  const yld=sc.principal>0?sYTD[i]/sc.principal:0;
+                  return <tr key={s.id}>
+                    <td className="seq">{i+1}</td>
+                    <td style={{fontWeight:500}}>{sn(i)}</td>
+                    <td className="ic"><input type="number" value={sc.principal||""} placeholder="0" onChange={e=>save({...data,sources:{...data.sources,[s.id]:{...sc,principal:parseFloat(e.target.value)||0}}})}/></td>
+                    <td className="ic"><input type="number" value={sc.hours||""} placeholder="0" onChange={e=>save({...data,sources:{...data.sources,[s.id]:{...sc,hours:parseFloat(e.target.value)||0}}})}/></td>
+                    <td style={{color:sYTD[i]>0?"var(--up)":"var(--t3)",fontWeight:600}}>{F$(sYTD[i])}</td>
+                    <td style={{color:yld>0?"var(--accent)":"var(--t3)",fontWeight:700}}>{Fp(yld)}</td>
+                  </tr>;
+                })}
+                <tr className="tr-total">
+                  <td className="seq"></td>
+                  <td className="td-name">合计</td>
+                  <td>{F$(totalP)}</td><td></td>
+                  <td>{F$(ytd)}</td>
+                  <td style={{color:"var(--accent)"}}>{totalP>0?Fp(ytd/totalP):"—"}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* ─── FOOTER ─── */}
-        <div className="foot">
-          <div className="foot-l">
-            <button className="btn btn-sm" onClick={()=>{exportJSON(data);toast2("已导出");}}>📤 导出</button>
-            <button className="btn btn-sm" onClick={()=>fileRef.current?.click()}>📥 导入</button>
-            <button className="btn btn-sm" onClick={async()=>{
-              if(!getSheetsUrl()){toast2("请先设置 URL");return;}
-              try{await pushToSheets(data);toast2("已推送 ✓");}catch(e){toast2("失败: "+e.message);}
+        {/* ══ 月度总览（全宽卡片） ══ */}
+        <div className="card">
+          <div className="lbl">{sec("overview")}</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{minWidth:720}}>
+              <thead><tr>
+                <th style={{textAlign:"left",position:"sticky",left:0,background:"var(--th-bg)",zIndex:1,minWidth:108}}>来源</th>
+                {MO.map((m,i)=>(
+                  <th key={i} style={{cursor:"pointer",color:em===i?"var(--accent)":undefined,minWidth:50}} onClick={()=>setEm(i)}>{m}</th>
+                ))}
+                <th style={{minWidth:58}}>合计</th>
+              </tr></thead>
+              <tbody>
+                {SOURCES.map((s,si)=>(
+                  <tr key={s.id}>
+                    <td style={{fontWeight:500,position:"sticky",left:0,background:"var(--card)",zIndex:1}}>{sn(si)}</td>
+                    {MO.map((_,i)=>{ const v=data.monthly[i]?.[s.id]||0; return <td key={i} style={{color:v>0?"var(--t1)":"var(--t3)",background:i===em?"var(--inp-bg)":undefined,fontWeight:v>0?500:400}}>{v>0?Fn(v):"—"}</td>; })}
+                    <td style={{fontWeight:600,color:sYTD[si]>0?"var(--t1)":"var(--t3)"}}>{Fn(sYTD[si])}</td>
+                  </tr>
+                ))}
+                <tr className="tr-total">
+                  <td className="td-name" style={{position:"sticky",left:0,background:"var(--up-bg)",zIndex:1,fontWeight:700}}>合计</td>
+                  {MO.map((_,i)=>(
+                    <td key={i} style={{background:i===em?"#D5F0E4":undefined,fontWeight:700}}>{mt[i]>0?Fn(mt[i]):"—"}</td>
+                  ))}
+                  <td style={{fontWeight:700}}>{Fn(ytd)}</td>
+                </tr>
+                <tr>
+                  <td style={{color:"var(--t2)",position:"sticky",left:0,background:"var(--card)",zIndex:1}}>定投</td>
+                  {MO.map((_,i)=>{ const v=data.dca[i]?.amount||0; return <td key={i} style={{color:v>0?"var(--t2)":"var(--t3)"}}>{v>0?Fn(v):"—"}</td>; })}
+                  <td style={{fontWeight:600,color:"var(--t2)"}}>{Fn(ytdDCA)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ══ Footer ══ */}
+        <div className="fbar">
+          <div className="fl">
+            <button className="btn" style={{fontSize:12}} onClick={()=>{exportJSON(data);showToast("已导出");}}>📤 导出 JSON</button>
+            <button className="btn" style={{fontSize:12}} onClick={()=>fileRef.current?.click()}>📥 导入</button>
+            <button className="btn" style={{fontSize:12}} onClick={async()=>{
+              if(!getSheetsUrl()){showToast("请先设置 URL");return;}
+              try{await pushToSheets(data);showToast("已推送 ✓");}catch(e){showToast("失败："+e.message);}
             }}>📊 推送 Sheets</button>
           </div>
-          <div className="foot-r">
-            <button className="btn btn-sm" style={{color:"var(--rose)"}} onClick={()=>{if(confirm("退出登录？")){clearPin();setPin("");setData(null);setLoggedIn(false);}}}>退出</button>
+          <div className="fr">
+            <button className="btn" style={{fontSize:12,color:"var(--down)"}} onClick={()=>{
+              if(confirm("退出登录？")) { clearPin();setPin("");setData(null);setLoggedIn(false); }
+            }}>退出登录</button>
           </div>
         </div>
       </div>
 
-      {/* ─── SETTINGS MODAL ─── */}
+      {/* ══ 规范十：设置 Modal ══ */}
       {modal==="settings"&&(
-        <div className="overlay" onClick={()=>setModal(null)}>
+        <div className="ovl" onClick={()=>setModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-h">⚙️ 设置</div>
-
-            <div className="modal-label">现金流来源</div>
+            <div className="mlbl">现金流来源名称</div>
             {SOURCES.map((s,i)=>(
               <div key={s.id} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-                <span style={{fontSize:11,color:"var(--t3)",width:16,textAlign:"center"}}>{i+1}</span>
-                <input className="modal-inp" value={sn(i)} onChange={e=>{const nl={...lb,sources:[...(lb.sources||SOURCES.map(x=>x.name))]};nl.sources[i]=e.target.value;save({...data,labels:nl});}}/>
+                <span style={{fontSize:11,color:"var(--t3)",width:18,textAlign:"center"}}>{i+1}</span>
+                <input className="mi" value={sn(i)} onChange={e=>{const nl={...lb,sources:[...(lb.sources||SOURCES.map(x=>x.name))]};nl.sources[i]=e.target.value;save({...data,labels:nl});}}/>
               </div>
             ))}
-
-            <div className="modal-label">纪律红线</div>
+            <div className="mlbl">纪律红线</div>
             {RULES.map((_,i)=>(
               <div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-                <span style={{fontSize:11,color:"var(--t3)",width:16,textAlign:"center"}}>{i+1}</span>
-                <input className="modal-inp" value={rn(i)} onChange={e=>{const nl={...lb,rules:[...(lb.rules||[...RULES])]};nl.rules[i]=e.target.value;save({...data,labels:nl});}}/>
+                <span style={{fontSize:11,color:"var(--t3)",width:18,textAlign:"center"}}>{i+1}</span>
+                <input className="mi" value={rn(i)} onChange={e=>{const nl={...lb,rules:[...(lb.rules||[...RULES])]};nl.rules[i]=e.target.value;save({...data,labels:nl});}}/>
               </div>
             ))}
-
-            <div className="modal-label">区块标题</div>
+            <div className="mlbl">区块标题</div>
             {[["cashflow","现金流录入"],["dca","资产定投"],["overview","月度总览"],["principal","本金 & 年化"],["discipline","纪律红线"]].map(([k,def])=>(
               <div key={k} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
                 <span style={{fontSize:10,color:"var(--t3)",width:52,textAlign:"right"}}>{k}</span>
-                <input className="modal-inp" value={sec(k)} placeholder={def} onChange={e=>{const nl={...lb,sections:{...(lb.sections||{}),[k]:e.target.value}};save({...data,labels:nl});}}/>
+                <input className="mi" value={sec(k)} placeholder={def} onChange={e=>{const nl={...lb,sections:{...(lb.sections||{}),[k]:e.target.value}};save({...data,labels:nl});}}/>
               </div>
             ))}
-
-            <div className="modal-label">Google Sheets URL</div>
-            <input className="modal-inp" value={sheetsUrl} placeholder="粘贴 Apps Script URL"
-              onChange={e=>{setSheetsUrlLocal(e.target.value);saveSheetsUrl(e.target.value);}}/>
-
-            <div className="modal-label">账户</div>
-            <div style={{fontSize:12,color:"var(--t2)",lineHeight:2}}>
-              PIN：{pin.replace(/./g,"•")}　·　年份：{YEAR}
-            </div>
-
-            <div className="modal-foot">
-              <button className="btn" onClick={()=>setModal(null)}>关闭</button>
-            </div>
+            <div className="mlbl">Google Sheets URL</div>
+            <input className="mi" value={sheetsUrl} placeholder="粘贴 Apps Script URL" onChange={e=>{setSheetsUrlLocal(e.target.value);saveSheetsUrl(e.target.value);}}/>
+            <div className="mlbl">账户信息</div>
+            <div style={{fontSize:12,color:"var(--t2)",lineHeight:2}}>PIN：{pin.replace(/./g,"•")}　·　年份：{YEAR}</div>
+            <div className="mfoot"><button className="btn" onClick={()=>setModal(null)}>关闭</button></div>
           </div>
         </div>
       )}
 
-      {/* ─── VERSIONS MODAL ─── */}
+      {/* ══ 版本历史 Modal ══ */}
       {modal==="versions"&&(
-        <div className="overlay" onClick={()=>setModal(null)}>
+        <div className="ovl" onClick={()=>setModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-h">🕐 版本历史</div>
-            <div style={{fontSize:11,color:"var(--t3)",marginBottom:12}}>每次修改自动保存，点击可恢复到该版本</div>
-            {versions.length===0?(
-              <div style={{color:"var(--t3)",textAlign:"center",padding:"24px 0"}}>暂无记录</div>
-            ):(
-              <div className="ver-wrap">
+            <div style={{fontSize:11,color:"var(--t3)",marginBottom:14}}>每次修改自动保存，点击可恢复</div>
+            {versions.length===0
+              ?<div style={{color:"var(--t3)",textAlign:"center",padding:"24px 0"}}>暂无记录</div>
+              :<div className="vbox">
                 {versions.map(v=>{
                   const d=new Date(v.created_at);
                   const label=d.toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
                   const today=d.toDateString()===new Date().toDateString();
-                  return(
-                    <div className="ver-row" key={v.id} onClick={()=>restoreVer(v.id,label)}>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        <span style={{fontVariantNumeric:"tabular-nums"}}>{label}</span>
-                        {today&&<span style={{fontSize:10,color:"var(--emerald)",fontWeight:600}}>今天</span>}
-                      </div>
-                      <span style={{color:"var(--gold)",fontWeight:600,fontSize:12}}>恢复</span>
+                  return <div className="vrow" key={v.id} onClick={()=>restoreVer(v.id,label)}>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <span style={{fontVariantNumeric:"tabular-nums"}}>{label}</span>
+                      {today&&<span style={{fontSize:10,color:"var(--up)",fontWeight:600}}>今天</span>}
                     </div>
-                  );
+                    <span style={{color:"var(--accent)",fontWeight:600,fontSize:12}}>恢复</span>
+                  </div>;
                 })}
               </div>
-            )}
-            <div className="modal-foot">
-              <button className="btn" onClick={()=>setModal(null)}>关闭</button>
-            </div>
+            }
+            <div className="mfoot"><button className="btn" onClick={()=>setModal(null)}>关闭</button></div>
           </div>
         </div>
       )}
