@@ -115,41 +115,51 @@ input[type=number] { -moz-appearance:textfield; }
   border-radius: 10px;
   border: 1px solid var(--border);
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  padding: 20px 24px;
-  margin-bottom: 16px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
 }
+/* Card whose table runs edge-to-edge */
+.card-flush { padding: 16px 0 0; }
+.card-flush .sec-label { padding: 0 20px; }
 /* Page-header card gets 3px accent stripe + slightly heavier shadow */
 .card-hd {
   border-top: 3px solid var(--accent);
   box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  padding: 0;
 }
 
-/* §3 Section label (10px 700 uppercase text3) — NO orange bar */
+/* §3 Section label — Futu style: small, tight, with divider below */
 .sec-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 2px;
-  text-transform: uppercase; color: var(--text3);
-  margin-bottom: 12px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text1);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
 }
+.sec-label .sec-sub { font-size: 10px; color: var(--text3); font-weight: 400; letter-spacing: 0.3px; }
 
 /* §5 Tables */
 table { border-collapse: collapse; width: 100%; }
 th {
   background: var(--th-bg);
   color: var(--text2);
-  font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
-  padding: 8px 12px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+  padding: 7px 14px;
   border-bottom: 1px solid var(--border);
   text-align: right; white-space: nowrap;
 }
-th:first-child { text-align: left; }
+th:first-child { text-align: left; padding-left: 16px; }
+th:last-child { padding-right: 16px; }
 td {
-  padding: 8px 12px;
+  padding: 7px 14px; height: 32px;
   border-bottom: 1px solid #F5F5F5;
   font-size: 13px; font-weight: 400;
   font-variant-numeric: tabular-nums;
   text-align: right; white-space: nowrap; color: var(--text1);
 }
-td:first-child { text-align: left; }
+td:first-child { text-align: left; padding-left: 16px; }
+td:last-child { padding-right: 16px; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--hover-bg); }
 
@@ -196,7 +206,7 @@ tbody tr:hover td { background: var(--hover-bg); }
 .btn-primary:hover { background: var(--accent-hv); }
 
 /* §8 Layout grid — 1fr 1fr 1.5fr */
-.grid3 { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 16px; margin-bottom: 16px; align-items: start; }
+.grid3 { display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr; gap: 14px; margin-bottom: 14px; align-items: start; }
 .col2-stack { display: flex; flex-direction: column; gap: 12px; }
 .col2-stack > .card { margin-bottom: 0; }
 
@@ -278,7 +288,7 @@ tbody tr:hover td { background: var(--hover-bg); }
 .ver-row:last-child { border-bottom: none; }
 
 /* Rule rows */
-.rule-r { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F5F5F5; }
+.rule-r { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #F5F5F5; }
 .rule-r:last-child { border-bottom: none; }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .badge-r { background: var(--down-bg); color: var(--down); }
@@ -460,21 +470,17 @@ export default function App() {
 
       <div className="page">
 
-        {/* ═══ §4 PAGE HEADER CARD ═══ */}
+        {/* ═══ FUTU-STYLE PAGE HEADER ═══ */}
         <div className="card card-hd">
-          {/* Top row: title + sync + settings */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
-            <div>
-              {/* §3 Title: 19px 700 letter-spacing 3px */}
-              <div style={{ fontSize:19, fontWeight:700, letterSpacing:3, color:"var(--text1)" }}>
+          {/* Row 1: brand + actions */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px 12px" }}>
+            <div style={{ display:"flex", alignItems:"baseline", gap:12 }}>
+              <span style={{ fontSize:19, fontWeight:700, letterSpacing:3, color:"var(--text1)" }}>
                 小博现金流实验室
-              </div>
-              <div style={{ fontSize:11, color:"var(--text3)", marginTop:3 }}>
-                {YEAR} · 工资全存 · 花钱靠现金流
-              </div>
+              </span>
+              <span style={{ fontSize:11, color:"var(--text3)" }}>{YEAR}</span>
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              {/* §9 Sync pill */}
               {syncing
                 ? <span className="sync-pill sync-ing">⏳ 同步中</span>
                 : <span className="sync-pill sync-ok">✓ 已同步</span>
@@ -483,19 +489,33 @@ export default function App() {
             </div>
           </div>
 
-          {/* KPI row — 4 cells with dividers, edge-to-edge */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", borderTop:"1px solid var(--border)", margin:"0 -24px -20px", borderBottomLeftRadius:10, borderBottomRightRadius:10, overflow:"hidden" }}>
+          {/* Row 2: Futu-style horizontal KPI strip — label + value inline, divided by vertical lines */}
+          <div style={{ display:"flex", alignItems:"stretch", borderTop:"1px solid var(--border)", background:"#FAFBFC", borderBottomLeftRadius:10, borderBottomRightRadius:10, overflow:"hidden" }}>
             {[
-              { label:"年度现金流", value:F$(ytd), sub: ytd>0 ? `YTD 已录入 ${CM+1} 个月` : "暂无收入记录", color: ytd>0?"var(--up)":undefined },
-              { label:"月均现金流", value:F$(Math.round(avg)), sub:`${MO[em]}：${F$(mt[em])}` },
-              { label:"总投入本金", value:F$(totP), sub:`年度定投：${F$(ytdDCA)}` },
-              { label:"综合年化",   value: totP>0 ? FP(ytd/totP) : "—", sub: data.violations.length===0?"纪律良好 ✓":`违纪 ${data.violations.length} 次`, color:totP>0&&ytd>0?"var(--accent)":undefined },
-            ].map((k,i) => (
-              <div key={i} style={{ padding:"14px 20px 10px", borderRight: i<3?"1px solid var(--border)":undefined }}>
-                <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, textTransform:"uppercase", color:"var(--text3)", marginBottom:4 }}>{k.label}</div>
-                {/* §3 Big number: 22px 700 */}
-                <div style={{ fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", color:k.color||"var(--text1)", lineHeight:1.2 }}>{k.value}</div>
-                <div style={{ fontSize:10, color:"var(--text3)", marginTop:3 }}>{k.sub}</div>
+              { label:"年度现金流", value:F$(ytd),                               color: ytd>0?"var(--up)":"var(--text1)",    size:20, primary:true },
+              { label:"月均",       value:F$(Math.round(avg)),                   color:"var(--text1)",                        size:16 },
+              { label:"当月",       value:F$(mt[em]),                            color: mt[em]>0?"var(--up)":"var(--text3)",  size:16, sub:MO[em] },
+              { label:"总本金",     value:F$(totP),                              color:"var(--text1)",                        size:16 },
+              { label:"年化",       value: totP>0 ? FP(ytd/totP) : "—",          color: totP>0&&ytd>0?"var(--accent)":"var(--text3)", size:16 },
+              { label:"定投",       value:F$(ytdDCA),                            color:"var(--text1)",                        size:16 },
+              { label:"违纪",       value: data.violations.length+" 次",         color: data.violations.length===0?"var(--up)":"var(--down)", size:16 },
+            ].map((k,i,arr) => (
+              <div key={i} style={{
+                flex: k.primary ? 1.3 : 1,
+                padding:"12px 16px",
+                borderRight: i<arr.length-1 ? "1px solid var(--border)" : undefined,
+                display:"flex", flexDirection:"column", justifyContent:"center",
+                minWidth:0,
+              }}>
+                <div style={{ fontSize:10, fontWeight:500, color:"var(--text2)", marginBottom:3, display:"flex", alignItems:"baseline", gap:4 }}>
+                  <span>{k.label}</span>
+                  {k.sub && <span style={{ color:"var(--text3)", fontSize:9 }}>{k.sub}</span>}
+                </div>
+                <div style={{
+                  fontSize:k.size, fontWeight:700, fontVariantNumeric:"tabular-nums",
+                  color:k.color, lineHeight:1.15, letterSpacing:"-0.3px",
+                  overflow:"hidden", textOverflow:"ellipsis",
+                }}>{k.value}</div>
               </div>
             ))}
           </div>
@@ -546,7 +566,10 @@ export default function App() {
 
           {/* Col 1 — 现金流录入 */}
           <div className="card">
-            <div className="sec-label">{MO[em]} · {sec("cashflow")}</div>
+            <div className="sec-label">
+              <span>{MO[em]} · {sec("cashflow")}</span>
+              <span className="sec-sub">共 {SOURCES.length} 项</span>
+            </div>
             <table>
               <thead><tr>
                 <th className="seq">#</th>
@@ -579,7 +602,10 @@ export default function App() {
           {/* Col 2 — DCA + 纪律 (stacked with dashed separator) */}
           <div className="col2-stack">
             <div className="card">
-              <div className="sec-label">{MO[em]} · {sec("dca")}</div>
+              <div className="sec-label">
+                <span>{MO[em]} · {sec("dca")}</span>
+                <span className="sec-sub">年度 {F$(ytdDCA)}</span>
+              </div>
               <table>
                 <thead><tr>
                   <th style={{ textAlign:"left" }}>金额 ($)</th>
@@ -605,7 +631,12 @@ export default function App() {
             </div>
 
             <div className="card">
-              <div className="sec-label">{sec("discipline")}</div>
+              <div className="sec-label">
+                <span>{sec("discipline")}</span>
+                <span className="sec-sub" style={{ color: data.violations.length===0?"var(--up)":"var(--down)" }}>
+                  {data.violations.length===0?"良好":`违纪 ${data.violations.length}`}
+                </span>
+              </div>
               {RULES.map((_,i)=>{
                 const cnt = data.violations.filter(v=>v.rule===i).length;
                 return (
@@ -625,7 +656,10 @@ export default function App() {
 
           {/* Col 3 — 本金 & 年化 */}
           <div className="card">
-            <div className="sec-label">{sec("principal")}</div>
+            <div className="sec-label">
+              <span>{sec("principal")}</span>
+              <span className="sec-sub">合计 {F$(totP)}</span>
+            </div>
             <table>
               <thead><tr>
                 <th className="seq">#</th>
@@ -662,7 +696,10 @@ export default function App() {
 
         {/* ═══ §13 MONTHLY OVERVIEW (full width, sticky header) ═══ */}
         <div className="card">
-          <div className="sec-label">{sec("overview")}</div>
+          <div className="sec-label">
+            <span>{sec("overview")}</span>
+            <span className="sec-sub">{YEAR} 年 · {CM+1}/12 月</span>
+          </div>
           <div style={{ overflowX:"auto" }}>
             <table style={{ minWidth:740 }}>
               <thead>
