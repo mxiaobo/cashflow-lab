@@ -213,10 +213,9 @@ tbody tr.tr-total:hover td { background: inherit; }
 .btn-primary { background: var(--accent); color: #fff; border: none; font-weight: 600; }
 .btn-primary:hover { background: var(--accent-hv); }
 
-/* §8 Layout grid — 1fr 1fr 1.5fr */
-.grid3 { display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr; gap: 14px; margin-bottom: 14px; align-items: start; }
-.col2-stack { display: flex; flex-direction: column; gap: 12px; }
-.col2-stack > .card { margin-bottom: 0; }
+/* §8 Layout grid */
+.grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 18px; align-items: start; }
+.grid2 > .card { margin-bottom: 0; }
 
 /* Toolbar row */
 .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
@@ -306,15 +305,12 @@ tbody tr.tr-total:hover td { background: inherit; }
 .foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px dashed var(--border); flex-wrap: wrap; gap: 8px; }
 
 /* §8 Responsive */
-@media (max-width: 960px) {
-  .grid3 { grid-template-columns: 1fr 1fr; }
-  .grid3 > :last-child { grid-column: 1 / -1; }
+@media (max-width: 860px) {
+  .grid2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-  .grid3 { grid-template-columns: 1fr; }
-  .grid3 > :last-child { grid-column: auto; }
-  .page { padding: 12px 12px 40px; }
-  .card { padding: 16px 16px; }
+  .page { padding: 14px 14px 40px; }
+  .card { padding: 18px 18px; }
   .modal { padding: 20px; }
 }
 `;
@@ -514,10 +510,8 @@ export default function App() {
             {[
               { label:"月均",       value:F$(Math.round(avg)),                   color:"var(--text1)" },
               { label:"当月",       value:F$(mt[em]),                            color: mt[em]>0?"var(--up)":"var(--text3)",  sub:MO[em] },
-              { label:"总本金",     value:F$(totP),                              color:"var(--text1)" },
-              { label:"年化",       value: totP>0 ? FP(ytd/totP) : "—",          color: totP>0&&ytd>0?"var(--accent)":"var(--text3)" },
-              { label:"定投",       value:F$(ytdDCA),                            color:"var(--text1)" },
-              { label:"违纪",       value: data.violations.length+" 次",         color: data.violations.length===0?"var(--up)":"var(--down)" },
+              { label:"定投·年度", value:F$(ytdDCA),                            color: ytdDCA>0?"var(--text1)":"var(--text3)" },
+              { label:"已记月份",   value: mt.filter(v=>v>0).length + " / 12",   color:"var(--text1)" },
             ].map((k,i,arr) => (
               <div key={i} style={{
                 flex: 1,
@@ -596,136 +590,133 @@ export default function App() {
           </div>
         </div>
 
-        {/* ═══ §8 3-COLUMN GRID  (1fr 1fr 1.5fr) ═══ */}
-        <div className="grid3">
+        {/* ═══ 2-COLUMN GRID ═══ */}
+        <div className="grid2">
 
-          {/* Col 1 — 现金流录入 */}
+          {/* 现金流录入 */}
           <div className="card">
             <div className="sec-label">
               <span>{MO[em]} · {sec("cashflow")}</span>
-              <span className="sec-sub">共 {SOURCES.length} 项</span>
+              <span className="sec-sub">
+                本月 <span style={{ color: mt[em]>0?"var(--up)":"var(--text3)", fontWeight:600 }}>{F$(mt[em])}</span>
+                <span style={{ margin:"0 6px", color:"var(--text3)" }}>·</span>
+                YTD <span style={{ color: ytd>0?"var(--up)":"var(--text3)", fontWeight:600 }}>{F$(ytd)}</span>
+              </span>
             </div>
             <table>
               <thead><tr>
                 <th className="seq">No.</th>
                 <th style={{ textAlign:"left" }}>来源</th>
-                <th style={{ minWidth:84 }}>本月收入</th>
+                <th style={{ minWidth:96 }}>本月收入</th>
                 <th>YTD</th>
+                <th style={{ minWidth:64 }}>占比</th>
               </tr></thead>
               <tbody>
-                {SOURCES.map((s,i) => (
-                  <tr key={s.id}>
-                    <td className="seq">{i+1}</td>
-                    <td style={{ textAlign:"left", fontWeight:500 }}>{sn(i)}</td>
-                    <td className="ic">
-                      <input type="number" value={data.monthly[em]?.[s.id]||""} placeholder="0"
-                        onChange={e=>{const m=[...data.monthly];m[em]={...m[em],[s.id]:parseFloat(e.target.value)||0};save({...data,monthly:m});}} />
-                    </td>
-                    <td style={{ color:sYTD[i]>0?"var(--text1)":"var(--text3)", fontWeight:sYTD[i]>0?600:400 }}>{F$(sYTD[i])}</td>
-                  </tr>
-                ))}
-                <tr className="tr-total tr-up">
-                  <td className="seq"></td>
-                  <td style={{ textAlign:"left" }}>合计</td>
-                  <td>{F$(mt[em])}</td>
-                  <td>{F$(ytd)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Col 2 — DCA + 纪律 (stacked with dashed separator) */}
-          <div className="col2-stack">
-            <div className="card">
-              <div className="sec-label">
-                <span>{MO[em]} · {sec("dca")}</span>
-                <span className="sec-sub">年度 {F$(ytdDCA)}</span>
-              </div>
-              <table>
-                <thead><tr>
-                  <th style={{ textAlign:"left" }}>金额 ($)</th>
-                  <th style={{ textAlign:"left" }}>备注</th>
-                </tr></thead>
-                <tbody>
-                  <tr>
-                    <td className="ic" style={{ width:90 }}>
-                      <input type="number" value={data.dca[em]?.amount||""} placeholder="0"
-                        onChange={e=>{const d=[...data.dca];d[em]={...d[em],amount:parseFloat(e.target.value)||0};save({...data,dca:d});}} />
-                    </td>
-                    <td style={{ textAlign:"left", padding:"4px 12px" }}>
-                      <input className="note-inp" type="text" value={data.dca[em]?.note||""} placeholder="这个月买了什么"
-                        onChange={e=>{const d=[...data.dca];d[em]={...d[em],note:e.target.value};save({...data,dca:d});}} />
-                    </td>
-                  </tr>
-                  <tr className="tr-total tr-up">
-                    <td style={{ textAlign:"left" }}>年度合计</td>
-                    <td style={{ textAlign:"left" }}>{F$(ytdDCA)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="card">
-              <div className="sec-label">
-                <span>{sec("discipline")}</span>
-                <span className="sec-sub" style={{ color: data.violations.length===0?"var(--up)":"var(--down)" }}>
-                  {data.violations.length===0?"良好":`违纪 ${data.violations.length}`}
-                </span>
-              </div>
-              {RULES.map((_,i)=>{
-                const cnt = data.violations.filter(v=>v.rule===i).length;
-                return (
-                  <div className="rule-r" key={i}>
-                    <span style={{ fontSize:12, fontWeight:500, color:cnt>0?"var(--down)":"var(--text1)" }}>{rn(i)}</span>
-                    <span className={`badge ${cnt>0?"badge-r":"badge-g"}`}>{cnt} 次</span>
-                  </div>
-                );
-              })}
-              <button className="btn" style={{ width:"100%", marginTop:12, fontSize:12, justifyContent:"center" }} onClick={()=>{
-                const r=prompt("违反了哪条？(1/2/3)");
-                const idx=parseInt(r)-1;
-                if(idx>=0&&idx<=2){const note=prompt("原因：")||"";save({...data,violations:[...data.violations,{rule:idx,date:NOW.toISOString().slice(0,10),note}]});}
-              }}>📝 记录违反</button>
-            </div>
-          </div>
-
-          {/* Col 3 — 本金 & 年化 */}
-          <div className="card">
-            <div className="sec-label">
-              <span>{sec("principal")}</span>
-              <span className="sec-sub">合计 {F$(totP)}</span>
-            </div>
-            <table>
-              <thead><tr>
-                <th className="seq">No.</th>
-                <th style={{ textAlign:"left" }}>来源</th>
-                <th style={{ minWidth:90 }}>本金 ($)</th>
-                <th>年化</th>
-              </tr></thead>
-              <tbody>
-                {SOURCES.map((s,i)=>{
-                  const sc  = data.sources[s.id]||{};
-                  const yld = sc.principal>0 ? sYTD[i]/sc.principal : 0;
+                {SOURCES.map((s,i) => {
+                  const share = ytd>0 ? sYTD[i]/ytd : 0;
                   return (
                     <tr key={s.id}>
                       <td className="seq">{i+1}</td>
                       <td style={{ textAlign:"left", fontWeight:500 }}>{sn(i)}</td>
                       <td className="ic">
-                        <input type="number" value={sc.principal||""} placeholder="0"
-                          onChange={e=>save({...data,sources:{...data.sources,[s.id]:{...sc,principal:parseFloat(e.target.value)||0}}})} />
+                        <input type="number" value={data.monthly[em]?.[s.id]||""} placeholder="0"
+                          onChange={e=>{const m=[...data.monthly];m[em]={...m[em],[s.id]:parseFloat(e.target.value)||0};save({...data,monthly:m});}} />
                       </td>
-                      <td style={{ color:yld>0?"var(--accent)":"var(--text3)", fontWeight:700 }}>{FP(yld)}</td>
+                      <td style={{ color:sYTD[i]>0?"var(--text1)":"var(--text3)", fontWeight:sYTD[i]>0?600:400 }}>{F$(sYTD[i])}</td>
+                      <td style={{ color: share>0?"var(--text2)":"var(--text3)", fontSize:12 }}>
+                        {share>0 ? (
+                          <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"flex-end" }}>
+                            <div style={{ width:36, height:4, background:"#F0F0F0", borderRadius:2, overflow:"hidden" }}>
+                              <div style={{ width:`${Math.min(100,share*100)}%`, height:"100%", background:"var(--up)" }} />
+                            </div>
+                            <span style={{ fontVariantNumeric:"tabular-nums", minWidth:32 }}>{(share*100).toFixed(0)}%</span>
+                          </div>
+                        ) : "—"}
+                      </td>
                     </tr>
                   );
                 })}
                 <tr className="tr-total tr-up">
                   <td className="seq"></td>
                   <td style={{ textAlign:"left" }}>合计</td>
-                  <td>{F$(totP)}</td>
-                  <td style={{ color:"var(--accent)" }}>{totP>0?FP(ytd/totP):"—"}</td>
+                  <td>{F$(mt[em])}</td>
+                  <td>{F$(ytd)}</td>
+                  <td>{ytd>0 ? "100%" : "—"}</td>
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* 资产定投 — hero amount editor */}
+          <div className="card">
+            <div className="sec-label">
+              <span>{MO[em]} · {sec("dca")}</span>
+              <span className="sec-sub">
+                年度合计 <span style={{ color: ytdDCA>0?"var(--up)":"var(--text3)", fontWeight:600 }}>{F$(ytdDCA)}</span>
+              </span>
+            </div>
+
+            {/* Hero amount input */}
+            <div style={{ padding:"22px 4px 18px", borderBottom:"1px dashed var(--border)" }}>
+              <div style={{ fontSize:11, color:"var(--text3)", marginBottom:8, letterSpacing:"0.5px" }}>
+                本月定投金额
+              </div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+                <span style={{ fontSize:22, color:"var(--text3)", fontWeight:400 }}>$</span>
+                <input
+                  type="number"
+                  value={data.dca[em]?.amount||""}
+                  placeholder="0"
+                  onChange={e=>{const d=[...data.dca];d[em]={...d[em],amount:parseFloat(e.target.value)||0};save({...data,dca:d});}}
+                  style={{
+                    flex:1, minWidth:0,
+                    fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums",
+                    color:"var(--inp-c)", letterSpacing:"-0.5px", lineHeight:1.1,
+                    border:"none", outline:"none", background:"transparent",
+                    fontFamily:"inherit", padding:0,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Note */}
+            <div style={{ padding:"16px 4px 4px" }}>
+              <div style={{ fontSize:11, color:"var(--text3)", marginBottom:8, letterSpacing:"0.5px" }}>
+                本月买入 / 备注
+              </div>
+              <input
+                className="note-inp"
+                type="text"
+                value={data.dca[em]?.note||""}
+                placeholder="比如：BTC 0.05 · VOO 5 股 …"
+                style={{ fontSize:14 }}
+                onChange={e=>{const d=[...data.dca];d[em]={...d[em],note:e.target.value};save({...data,dca:d});}}
+              />
+            </div>
+
+            {/* Footer stats */}
+            {(() => {
+              const filled = data.dca.filter(d=>d?.amount>0);
+              const avgM = filled.length>0 ? Math.round(ytdDCA/filled.length) : 0;
+              return (
+                <div style={{ display:"flex", marginTop:18, paddingTop:14, borderTop:"1px solid var(--border)" }}>
+                  <div style={{ flex:1, textAlign:"center" }}>
+                    <div style={{ fontSize:10, color:"var(--text3)", marginBottom:4, letterSpacing:"0.5px" }}>年度合计</div>
+                    <div style={{ fontSize:15, fontWeight:700, color: ytdDCA>0?"var(--up)":"var(--text3)", fontVariantNumeric:"tabular-nums" }}>{F$(ytdDCA)}</div>
+                  </div>
+                  <div style={{ flex:1, textAlign:"center", borderLeft:"1px solid var(--border)" }}>
+                    <div style={{ fontSize:10, color:"var(--text3)", marginBottom:4, letterSpacing:"0.5px" }}>已记月份</div>
+                    <div style={{ fontSize:15, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>
+                      {filled.length}<span style={{ fontSize:11, color:"var(--text3)", fontWeight:400 }}> / 12</span>
+                    </div>
+                  </div>
+                  <div style={{ flex:1, textAlign:"center", borderLeft:"1px solid var(--border)" }}>
+                    <div style={{ fontSize:10, color:"var(--text3)", marginBottom:4, letterSpacing:"0.5px" }}>月均</div>
+                    <div style={{ fontSize:15, fontWeight:700, color: avgM>0?"var(--text1)":"var(--text3)", fontVariantNumeric:"tabular-nums" }}>{avgM>0 ? F$(avgM) : "—"}</div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -873,32 +864,8 @@ export default function App() {
               </div>
             ))}
 
-            <div className="modal-sec">纪律红线</div>
-            {RULES.map((_,i)=>(
-              <div key={i} style={{ display:"flex", gap:8, marginBottom:6, alignItems:"center" }}>
-                <span style={{ fontSize:11, color:"var(--text3)", width:18, textAlign:"center" }}>{i+1}</span>
-                <input className="modal-inp" value={rn(i)} onChange={e=>{
-                  const nl={...lb,rules:[...(lb.rules||[...RULES])]};
-                  nl.rules[i]=e.target.value; save({...data,labels:nl});
-                }} />
-              </div>
-            ))}
-
-            <div className="modal-sec">时间成本 (小时/月)</div>
-            {SOURCES.map((s,i)=>{
-              const sc = data.sources[s.id]||{};
-              return (
-                <div key={s.id} style={{ display:"flex", gap:8, marginBottom:6, alignItems:"center" }}>
-                  <span style={{ fontSize:12, color:"var(--text2)", flex:1 }}>{sn(i)}</span>
-                  <input className="modal-inp" type="number" value={sc.hours||""} placeholder="0"
-                    style={{ width:80, textAlign:"right" }}
-                    onChange={e=>save({...data,sources:{...data.sources,[s.id]:{...sc,hours:parseFloat(e.target.value)||0}}})} />
-                </div>
-              );
-            })}
-
             <div className="modal-sec">区块标题</div>
-            {[["cashflow","现金流录入"],["dca","资产定投"],["overview","月度总览"],["principal","本金 & 年化"],["discipline","纪律红线"]].map(([k,def])=>(
+            {[["cashflow","现金流录入"],["dca","资产定投"],["overview","月度总览"]].map(([k,def])=>(
               <div key={k} style={{ display:"flex", gap:8, marginBottom:6, alignItems:"center" }}>
                 <span style={{ fontSize:10, color:"var(--text3)", width:54, textAlign:"right", flexShrink:0 }}>{k}</span>
                 <input className="modal-inp" value={sec(k)} placeholder={def} onChange={e=>{
