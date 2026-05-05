@@ -23,6 +23,7 @@ const empty = () => ({
   sources: SOURCES.reduce((a,s)=>({...a,[s.id]:{principal:0,hours:0}}),{}),
   monthly: Array.from({length:12},()=>SOURCES.reduce((a,s)=>({...a,[s.id]:0}),{})),
   dca: Array.from({length:12},()=>({amount:0,note:""})),
+  notes: Array.from({length:12},()=>""),
   violations: [],
   year: YEAR,
   labels: {
@@ -37,9 +38,11 @@ const empty = () => ({
 
 const merge = (raw) => {
   if (!raw || raw.year !== YEAR) return empty();
-  return { ...empty(), ...raw,
-    sources: {...empty().sources,...raw.sources},
-    labels:  {...empty().labels,...raw.labels},
+  const base = empty();
+  return { ...base, ...raw,
+    sources: {...base.sources,...raw.sources},
+    labels:  {...base.labels,...raw.labels},
+    notes:   Array.isArray(raw.notes) && raw.notes.length===12 ? raw.notes : base.notes,
   };
 };
 
@@ -96,7 +99,7 @@ const CSS = `
 html, body {
   background: var(--bg);
   font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 13px; font-weight: 400; color: var(--text1); line-height: 1.5;
+  font-size: 14px; font-weight: 400; color: var(--text1); line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 input[type=number]::-webkit-inner-spin-button,
@@ -107,71 +110,76 @@ input[type=number] { -moz-appearance:textfield; }
 ::-webkit-scrollbar-thumb { background:#D0D0D0; border-radius:2px; }
 
 /* Layout */
-.page { max-width: 960px; margin: 0 auto; padding: 20px 20px 56px; }
+.page { max-width: 1180px; margin: 0 auto; padding: 24px 24px 64px; }
 
 /* §4 Cards */
 .card {
   background: var(--card);
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  padding: 16px 20px;
-  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  padding: 22px 26px;
+  margin-bottom: 18px;
 }
 /* Card whose table runs edge-to-edge */
-.card-flush { padding: 16px 0 0; }
-.card-flush .sec-label { padding: 0 20px; }
+.card-flush { padding: 22px 0 6px; }
+.card-flush .sec-label { padding: 0 26px; }
 /* Page-header card gets 3px accent stripe + slightly heavier shadow */
 .card-hd {
   border-top: 3px solid var(--accent);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   padding: 0;
 }
 
-/* §3 Section label — Futu style: small, tight, with divider below */
+/* §3 Section label — airy, no underline, like the balance-sheet target */
 .sec-label {
-  font-size: 12px; font-weight: 600;
-  color: var(--text1);
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 14px;
   display: flex; align-items: center; justify-content: space-between;
+  letter-spacing: 0.5px;
 }
-.sec-label .sec-sub { font-size: 10px; color: var(--text3); font-weight: 400; letter-spacing: 0.3px; }
+.sec-label .sec-sub { font-size: 11px; color: var(--text3); font-weight: 400; letter-spacing: 0.3px; }
 
 /* §5 Tables */
 table { border-collapse: collapse; width: 100%; }
 th {
-  background: var(--th-bg);
-  color: var(--text2);
-  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
-  padding: 7px 14px;
+  background: transparent;
+  color: var(--text3);
+  font-size: 11px; font-weight: 500; letter-spacing: 0.5px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   text-align: right; white-space: nowrap;
 }
-th:first-child { text-align: left; padding-left: 16px; }
-th:last-child { padding-right: 16px; }
+th:first-child { text-align: left; padding-left: 18px; }
+th:last-child { padding-right: 18px; }
 td {
-  padding: 7px 14px; height: 32px;
+  padding: 12px 14px; height: 44px;
   border-bottom: 1px solid #F5F5F5;
-  font-size: 13px; font-weight: 400;
+  font-size: 14px; font-weight: 400;
   font-variant-numeric: tabular-nums;
   text-align: right; white-space: nowrap; color: var(--text1);
 }
-td:first-child { text-align: left; padding-left: 16px; }
-td:last-child { padding-right: 16px; }
+td:first-child { text-align: left; padding-left: 18px; }
+td:last-child { padding-right: 18px; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--hover-bg); }
 
 /* Sequence column */
-.seq { text-align: center !important; color: var(--text3); font-size: 11px; width: 32px; min-width: 32px; }
+.seq { text-align: center !important; color: var(--text3); font-size: 12px; font-weight: 400; width: 40px; min-width: 40px; }
+th.seq { font-size: 11px; }
 
-/* Total row */
-.tr-total td { border-top: 1px solid var(--border); border-bottom: none !important; font-weight: 600; }
+/* Total row — pill-like rounded background, evokes the balance-sheet style */
+.tr-total td { border-top: 1px solid var(--border); border-bottom: none !important; font-weight: 700; padding-top: 14px; padding-bottom: 14px; }
 .tr-up td   { background: var(--up-bg);   color: var(--up);   }
-.tr-up td:first-child { color: var(--text1); }
+.tr-up td:first-child { color: var(--up); border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+.tr-up td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
 .tr-down td { background: var(--down-bg); color: var(--down); }
-.tr-down td:first-child { color: var(--text1); }
+.tr-down td:first-child { color: var(--down); border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+.tr-down td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+tbody tr.tr-total:hover td { background: inherit; }
+.tr-up:hover td { background: var(--up-bg); }
+.tr-down:hover td { background: var(--down-bg); }
 
 /* §6 Input cells */
 .ic { background: var(--inp-bg); }
@@ -470,50 +478,61 @@ export default function App() {
 
       <div className="page">
 
-        {/* ═══ FUTU-STYLE PAGE HEADER ═══ */}
+        {/* ═══ HERO PAGE HEADER ═══ */}
         <div className="card card-hd">
-          {/* Row 1: brand + actions */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px 12px" }}>
-            <div style={{ display:"flex", alignItems:"baseline", gap:12 }}>
-              <span style={{ fontSize:19, fontWeight:700, letterSpacing:3, color:"var(--text1)" }}>
-                小博现金流实验室
-              </span>
-              <span style={{ fontSize:11, color:"var(--text3)" }}>{YEAR}</span>
+          {/* Row 1: brand title block + hero net-cashflow badge */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"28px 32px 24px", gap:24, flexWrap:"wrap" }}>
+            <div>
+              <div style={{ fontSize:11, fontWeight:600, color:"var(--text3)", letterSpacing:"3px", marginBottom:6 }}>
+                FAMILY CASHFLOW LAB
+              </div>
+              <div style={{ fontSize:26, fontWeight:700, color:"var(--text1)", letterSpacing:"1px", marginBottom:6 }}>
+                小博现金流 · 实验室
+              </div>
+              <div style={{ fontSize:12, color:"var(--text3)" }}>
+                始记于 {YEAR} 年 1 月 · 月月不落
+              </div>
             </div>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              {syncing
-                ? <span className="sync-pill sync-ing">⏳ 同步中</span>
-                : <span className="sync-pill sync-ok">✓ 已同步</span>
-              }
-              <button className="btn" style={{ padding:"5px 10px", fontSize:12 }} onClick={()=>setModal("settings")}>⚙️ 设置</button>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:11, fontWeight:500, color:"var(--text3)", letterSpacing:"1px", marginBottom:6 }}>
+                年度现金流
+              </div>
+              <div style={{
+                display:"inline-block",
+                background: ytd>0 ? "var(--up-bg)" : "var(--th-bg)",
+                color: ytd>0 ? "var(--up)" : "var(--text3)",
+                fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums",
+                padding:"8px 22px", borderRadius:10, lineHeight:1.2, letterSpacing:"-0.5px",
+              }}>
+                {F$(ytd)}
+              </div>
             </div>
           </div>
 
-          {/* Row 2: Futu-style horizontal KPI strip — label + value inline, divided by vertical lines */}
-          <div style={{ display:"flex", alignItems:"stretch", borderTop:"1px solid var(--border)", background:"#FAFBFC", borderBottomLeftRadius:10, borderBottomRightRadius:10, overflow:"hidden" }}>
+          {/* Row 2: slim secondary KPI strip */}
+          <div style={{ display:"flex", alignItems:"stretch", borderTop:"1px solid var(--border)", background:"#FAFBFC", borderBottomLeftRadius:12, borderBottomRightRadius:12, overflow:"hidden" }}>
             {[
-              { label:"年度现金流", value:F$(ytd),                               color: ytd>0?"var(--up)":"var(--text1)",    size:20, primary:true },
-              { label:"月均",       value:F$(Math.round(avg)),                   color:"var(--text1)",                        size:16 },
-              { label:"当月",       value:F$(mt[em]),                            color: mt[em]>0?"var(--up)":"var(--text3)",  size:16, sub:MO[em] },
-              { label:"总本金",     value:F$(totP),                              color:"var(--text1)",                        size:16 },
-              { label:"年化",       value: totP>0 ? FP(ytd/totP) : "—",          color: totP>0&&ytd>0?"var(--accent)":"var(--text3)", size:16 },
-              { label:"定投",       value:F$(ytdDCA),                            color:"var(--text1)",                        size:16 },
-              { label:"违纪",       value: data.violations.length+" 次",         color: data.violations.length===0?"var(--up)":"var(--down)", size:16 },
+              { label:"月均",       value:F$(Math.round(avg)),                   color:"var(--text1)" },
+              { label:"当月",       value:F$(mt[em]),                            color: mt[em]>0?"var(--up)":"var(--text3)",  sub:MO[em] },
+              { label:"总本金",     value:F$(totP),                              color:"var(--text1)" },
+              { label:"年化",       value: totP>0 ? FP(ytd/totP) : "—",          color: totP>0&&ytd>0?"var(--accent)":"var(--text3)" },
+              { label:"定投",       value:F$(ytdDCA),                            color:"var(--text1)" },
+              { label:"违纪",       value: data.violations.length+" 次",         color: data.violations.length===0?"var(--up)":"var(--down)" },
             ].map((k,i,arr) => (
               <div key={i} style={{
-                flex: k.primary ? 1.3 : 1,
-                padding:"12px 16px",
+                flex: 1,
+                padding:"14px 18px",
                 borderRight: i<arr.length-1 ? "1px solid var(--border)" : undefined,
                 display:"flex", flexDirection:"column", justifyContent:"center",
                 minWidth:0,
               }}>
-                <div style={{ fontSize:10, fontWeight:500, color:"var(--text2)", marginBottom:3, display:"flex", alignItems:"baseline", gap:4 }}>
+                <div style={{ fontSize:11, fontWeight:500, color:"var(--text2)", marginBottom:4, display:"flex", alignItems:"baseline", gap:4 }}>
                   <span>{k.label}</span>
-                  {k.sub && <span style={{ color:"var(--text3)", fontSize:9 }}>{k.sub}</span>}
+                  {k.sub && <span style={{ color:"var(--text3)", fontSize:10 }}>{k.sub}</span>}
                 </div>
                 <div style={{
-                  fontSize:k.size, fontWeight:700, fontVariantNumeric:"tabular-nums",
-                  color:k.color, lineHeight:1.15, letterSpacing:"-0.3px",
+                  fontSize:16, fontWeight:700, fontVariantNumeric:"tabular-nums",
+                  color:k.color, lineHeight:1.2, letterSpacing:"-0.2px",
                   overflow:"hidden", textOverflow:"ellipsis",
                 }}>{k.value}</div>
               </div>
@@ -522,13 +541,22 @@ export default function App() {
         </div>
 
         {/* ═══ TOOLBAR ═══ */}
-        <div className="toolbar">
+        <div className="toolbar card" style={{ padding:"14px 20px", marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
           <div className="toolbar-l">
+            <span style={{
+              display:"inline-flex", alignItems:"center", gap:6,
+              padding:"6px 12px", borderRadius:6, background:"var(--th-bg)",
+              fontSize:12, color:"var(--text2)", fontWeight:500, letterSpacing:"0.3px",
+            }}>
+              统计月份：<span style={{ color:"var(--text1)", fontWeight:600, fontVariantNumeric:"tabular-nums" }}>{YEAR}-{String(em+1).padStart(2,"0")}</span>
+            </span>
+            {em !== CM && (
+              <button className="btn" onClick={()=>setEm(CM)}>← 返回当月</button>
+            )}
             {/* §11 Month picker */}
             <div className="mp-wrap">
               <button className="btn" onClick={()=>setShowMP(!showMP)}>
-                📅 {MO[em]}
-                {mt[em]>0 && <span style={{ fontSize:11, color:"var(--up)", fontWeight:600 }}>{F$(mt[em])}</span>}
+                🗓 历史月份
                 <span style={{ fontSize:10, color:"var(--text3)" }}>▾</span>
               </button>
               {showMP && <>
@@ -550,14 +578,21 @@ export default function App() {
                 </div>
               </>}
             </div>
-            <button className="btn btn-primary" onClick={()=>{}}>✏️ 修改 {MO[em]}</button>
+            {em !== CM && (
+              <span style={{ fontSize:12, color:"var(--text3)" }}>正在查看 {YEAR}-{String(em+1).padStart(2,"0")} 历史记录</span>
+            )}
           </div>
           <div className="toolbar-r">
-            <button className="btn" style={{ fontSize:12 }} onClick={openVersions}>🕐 版本历史</button>
-            <button className="btn" style={{ fontSize:12 }} onClick={async()=>{
+            <button className="btn" onClick={openVersions}>🕐 版本历史</button>
+            <button className="btn" onClick={async()=>{
               if(!getSheetsUrl()){toast2("请先在设置中配置 URL");return;}
               try{await pushToSheets(data);toast2("已推送 ✓");}catch(e){toast2("失败："+e.message);}
             }}>📊 Sheets</button>
+            <button className="btn" onClick={()=>setModal("settings")}>⚙️ 设置</button>
+            {syncing
+              ? <span className="sync-pill sync-ing">⏳ 同步中</span>
+              : <span className="sync-pill sync-ok">✓ 已同步</span>
+            }
           </div>
         </div>
 
@@ -572,7 +607,7 @@ export default function App() {
             </div>
             <table>
               <thead><tr>
-                <th className="seq">#</th>
+                <th className="seq">No.</th>
                 <th style={{ textAlign:"left" }}>来源</th>
                 <th style={{ minWidth:84 }}>本月收入</th>
                 <th>YTD</th>
@@ -662,7 +697,7 @@ export default function App() {
             </div>
             <table>
               <thead><tr>
-                <th className="seq">#</th>
+                <th className="seq">No.</th>
                 <th style={{ textAlign:"left" }}>来源</th>
                 <th style={{ minWidth:90 }}>本金 ($)</th>
                 <th>年化</th>
@@ -742,6 +777,71 @@ export default function App() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* ═══ 本月备注 ═══ */}
+        <div className="card">
+          <div className="sec-label">
+            <span>{MO[em]} · 备注</span>
+            <span className="sec-sub">本月复盘</span>
+          </div>
+          <textarea
+            value={data.notes[em] || ""}
+            onChange={e=>{
+              const ns = [...data.notes];
+              ns[em] = e.target.value;
+              save({...data, notes: ns});
+            }}
+            placeholder="本月做对了什么，做错了什么……"
+            style={{
+              width:"100%", minHeight:72, padding:"12px 14px",
+              border:"1px solid var(--border)", borderRadius:8,
+              background:"var(--inp-bg)", fontSize:14, lineHeight:1.6,
+              fontFamily:"inherit", color:"var(--text1)",
+              resize:"vertical", outline:"none", transition:"border-color 0.15s",
+            }}
+            onFocus={e=>e.target.style.borderColor="var(--accent)"}
+            onBlur={e=>e.target.style.borderColor="var(--border)"}
+          />
+        </div>
+
+        {/* ═══ 现金流走势 ═══ */}
+        <div className="card">
+          <div className="sec-label">
+            <span style={{ borderLeft:"3px solid var(--accent)", paddingLeft:8 }}>现金流走势（$）</span>
+            <span className="sec-sub">{YEAR} 年 · 月度合计</span>
+          </div>
+          {(() => {
+            const W = 1080, H = 200, padX = 40, padTop = 16, padBot = 32;
+            const max = Math.max(...mt, 1);
+            const xs = (i) => padX + (i / 11) * (W - padX*2);
+            const ys = (v) => padTop + (1 - v / max) * (H - padTop - padBot);
+            const points = mt.map((v,i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(" ");
+            const area = `${xs(0).toFixed(1)},${(H-padBot).toFixed(1)} ${points} ${xs(11).toFixed(1)},${(H-padBot).toFixed(1)}`;
+            return (
+              <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H, display:"block" }}>
+                {[0,0.25,0.5,0.75,1].map((p,i)=>(
+                  <line key={i}
+                    x1={padX} x2={W-padX}
+                    y1={padTop+(H-padTop-padBot)*p} y2={padTop+(H-padTop-padBot)*p}
+                    stroke="#EEE" strokeWidth="1" strokeDasharray={p===1?"":"3,4"} />
+                ))}
+                <polygon points={area} fill="var(--up-bg)" opacity="0.6" />
+                <polyline points={points} fill="none" stroke="var(--up)" strokeWidth="2" />
+                {mt.map((v,i) => v>0 && (
+                  <circle key={i} cx={xs(i)} cy={ys(v)} r={i===em?5:3.5}
+                    fill={i===em?"var(--accent)":"var(--up)"}
+                    stroke="#fff" strokeWidth={i===em?2:1} />
+                ))}
+                {MO.map((m,i) => (
+                  <text key={i} x={xs(i)} y={H-10} textAnchor="middle"
+                    fontSize="11"
+                    fill={i===em?"var(--accent)":"var(--text3)"}
+                    fontWeight={i===em?600:400}>{m}</text>
+                ))}
+              </svg>
+            );
+          })()}
         </div>
 
         {/* ═══ FOOTER ═══ */}
