@@ -301,8 +301,32 @@ tbody tr.tr-total:hover td { background: inherit; }
 .badge-r { background: var(--down-bg); color: var(--down); }
 .badge-g { background: var(--th-bg); color: var(--text3); }
 
+/* Page-level section header (between cards, narrative) */
+.psec {
+  display: flex; align-items: center; gap: 12px;
+  margin: 10px 4px 14px;
+  font-size: 11px; font-weight: 600; color: var(--text3);
+  letter-spacing: 3px; text-transform: uppercase;
+}
+.psec::before, .psec::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
+.psec span { white-space: nowrap; }
+
+/* Demoted/secondary card — less visual weight, like an appendix */
+.card-sub {
+  background: transparent;
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
 /* Footer bar */
-.foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px dashed var(--border); flex-wrap: wrap; gap: 8px; }
+.foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; margin-top: 6px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  flex-wrap: wrap; gap: 8px;
+}
 
 /* §8 Responsive */
 @media (max-width: 860px) {
@@ -448,8 +472,16 @@ export default function App() {
   const mt   = data.monthly.map(m => SOURCES.reduce((s,src)=>s+(m[src.id]||0),0));
   const ytd  = mt.reduce((a,b)=>a+b,0);
   const avg  = ytd / (CM + 1);
-  const totP = SOURCES.reduce((a,s)=>a+(data.sources[s.id]?.principal||0),0);
   const ytdDCA = data.dca.reduce((a,d)=>a+(d.amount||0),0);
+  // month-over-month delta for KPI strip
+  const prevM = mt[em-1] || 0;
+  const momDelta = mt[em] - prevM;
+  const momPct = prevM>0 ? (mt[em]-prevM)/prevM : null;
+  const fmtDelta = (n) => {
+    if (!n) return "—";
+    const abs = Math.abs(n).toLocaleString("en-US",{maximumFractionDigits:0});
+    return (n>0?"+$":"−$") + abs;
+  };
   const sYTD = SOURCES.map(s=>data.monthly.reduce((a,m)=>a+(m[s.id]||0),0));
 
   /* Label helpers */
@@ -510,8 +542,11 @@ export default function App() {
             {[
               { label:"月均",       value:F$(Math.round(avg)),                   color:"var(--text1)" },
               { label:"当月",       value:F$(mt[em]),                            color: mt[em]>0?"var(--up)":"var(--text3)",  sub:MO[em] },
+              { label:"环比",
+                value: fmtDelta(momDelta),
+                color: momDelta>0?"var(--up)":(momDelta<0?"var(--down)":"var(--text3)"),
+                sub: momPct!==null ? (momPct>=0?"+":"") + (momPct*100).toFixed(0) + "%" : (em>0?"上月 0":"年初") },
               { label:"定投·年度", value:F$(ytdDCA),                            color: ytdDCA>0?"var(--text1)":"var(--text3)" },
-              { label:"已记月份",   value: mt.filter(v=>v>0).length + " / 12",   color:"var(--text1)" },
             ].map((k,i,arr) => (
               <div key={i} style={{
                 flex: 1,
@@ -590,7 +625,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* ═══ 2-COLUMN GRID ═══ */}
+        {/* ═══ ① 本月录入 ═══ */}
+        <div className="psec"><span>本月录入 · {MO[em]}</span></div>
+
         <div className="grid2">
 
           {/* 现金流录入 */}
@@ -694,6 +731,50 @@ export default function App() {
               />
             </div>
 
+            {/* Recent months (excludes current em) — fills the card to match cashflow height */}
+            {(() => {
+              const recent = [];
+              for (let i=em-1; i>=0 && recent.length<3; i--) recent.push(i);
+              while (recent.length<3) recent.push(-1);
+              return (
+                <div style={{ marginTop:18 }}>
+                  <div style={{ fontSize:11, color:"var(--text3)", marginBottom:8, letterSpacing:"0.5px" }}>最近 3 个月</div>
+                  {recent.map((mi,k) => {
+                    if (mi<0) {
+                      return <div key={k} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:k<2?"1px solid #F5F5F5":"none", color:"var(--text3)", fontSize:13 }}>
+                        <span>—</span><span>—</span>
+                      </div>;
+                    }
+                    const d = data.dca[mi] || {};
+                    const amt = d.amount || 0;
+                    return (
+                      <div key={k}
+                        onClick={()=>setEm(mi)}
+                        style={{
+                          display:"flex", justifyContent:"space-between", alignItems:"center",
+                          padding:"8px 0",
+                          borderBottom: k<2 ? "1px solid #F5F5F5" : "none",
+                          fontSize:13, cursor:"pointer", transition:"opacity 0.15s",
+                        }}
+                        onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
+                        onMouseLeave={e=>e.currentTarget.style.opacity="1"}
+                      >
+                        <div style={{ display:"flex", gap:10, alignItems:"baseline", minWidth:0, flex:1 }}>
+                          <span style={{ color:"var(--text2)", fontWeight:500, minWidth:32 }}>{MO[mi]}</span>
+                          <span style={{ color:"var(--text3)", fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            {d.note || ""}
+                          </span>
+                        </div>
+                        <span style={{ color: amt>0?"var(--text1)":"var(--text3)", fontWeight: amt>0?600:400, fontVariantNumeric:"tabular-nums" }}>
+                          {amt>0 ? F$(amt) : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {/* Footer stats */}
             {(() => {
               const filled = data.dca.filter(d=>d?.amount>0);
@@ -720,57 +801,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* ═══ §13 MONTHLY OVERVIEW (full width, sticky header) ═══ */}
-        <div className="card">
-          <div className="sec-label">
-            <span>{sec("overview")}</span>
-            <span className="sec-sub">{YEAR} 年 · {CM+1}/12 月</span>
-          </div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ minWidth:740 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign:"left", position:"sticky", left:0, background:"var(--th-bg)", zIndex:1, minWidth:108 }}>来源</th>
-                  {MO.map((m,i)=>(
-                    <th key={i} style={{ cursor:"pointer", color:em===i?"var(--accent)":undefined, minWidth:52 }}
-                      onClick={()=>setEm(i)}>{m}</th>
-                  ))}
-                  <th style={{ minWidth:60 }}>合计</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SOURCES.map((s,si)=>(
-                  <tr key={s.id}>
-                    <td style={{ textAlign:"left", fontWeight:500, position:"sticky", left:0, background:"var(--card)", zIndex:1 }}>{sn(si)}</td>
-                    {MO.map((_,i)=>{
-                      const v=data.monthly[i]?.[s.id]||0;
-                      return <td key={i} style={{
-                        color: v>0?"var(--text1)":"var(--text3)",
-                        background: i===em?"var(--inp-bg)":undefined,
-                        fontWeight: v>0?500:400,
-                      }}>{v>0?FN(v):"—"}</td>;
-                    })}
-                    <td style={{ fontWeight:600, color:sYTD[si]>0?"var(--text1)":"var(--text3)" }}>{FN(sYTD[si])}</td>
-                  </tr>
-                ))}
-                <tr className="tr-total tr-up">
-                  <td style={{ textAlign:"left", position:"sticky", left:0, background:"var(--up-bg)", zIndex:1 }}>现金流合计</td>
-                  {MO.map((_,i)=>(
-                    <td key={i} style={{ background:i===em?"#D7F5E8":undefined }}>{mt[i]>0?FN(mt[i]):"—"}</td>
-                  ))}
-                  <td>{FN(ytd)}</td>
-                </tr>
-                <tr>
-                  <td style={{ textAlign:"left", color:"var(--text2)", position:"sticky", left:0, background:"var(--card)", zIndex:1 }}>定投</td>
-                  {MO.map((_,i)=>{const v=data.dca[i]?.amount||0;return <td key={i} style={{ color:v>0?"var(--text2)":"var(--text3)" }}>{v>0?FN(v):"—"}</td>;})}
-                  <td style={{ fontWeight:600, color:"var(--text2)" }}>{FN(ytdDCA)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ═══ 本月备注 ═══ */}
+        {/* ═══ ② 本月复盘 ═══ */}
+        <div className="psec"><span>本月复盘</span></div>
         <div className="card">
           <div className="sec-label">
             <span>{MO[em]} · 备注</span>
@@ -796,36 +828,63 @@ export default function App() {
           />
         </div>
 
-        {/* ═══ 现金流走势 ═══ */}
+        {/* ═══ ③ 年度走势 ═══ */}
+        <div className="psec"><span>年度走势 · {YEAR}</span></div>
         <div className="card">
           <div className="sec-label">
-            <span style={{ borderLeft:"3px solid var(--accent)", paddingLeft:8 }}>现金流走势（$）</span>
-            <span className="sec-sub">{YEAR} 年 · 月度合计</span>
+            <span>现金流走势（$）</span>
+            <span className="sec-sub">
+              月均 <span style={{ color:"var(--text1)", fontWeight:600 }}>{F$(Math.round(avg))}</span>
+              <span style={{ margin:"0 6px", color:"var(--text3)" }}>·</span>
+              峰值 <span style={{ color:"var(--up)", fontWeight:600 }}>{F$(Math.max(...mt,0))}</span>
+            </span>
           </div>
           {(() => {
-            const W = 1080, H = 200, padX = 40, padTop = 16, padBot = 32;
-            const max = Math.max(...mt, 1);
+            const W = 1080, H = 240, padX = 56, padTop = 20, padBot = 36;
+            const rawMax = Math.max(...mt, 1);
+            // round to a "nice" number for the y-axis
+            const niceMax = (() => {
+              const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
+              const n = rawMax / pow;
+              const step = n<=1 ? 1 : n<=2 ? 2 : n<=5 ? 5 : 10;
+              return step * pow;
+            })();
             const xs = (i) => padX + (i / 11) * (W - padX*2);
-            const ys = (v) => padTop + (1 - v / max) * (H - padTop - padBot);
+            const ys = (v) => padTop + (1 - v / niceMax) * (H - padTop - padBot);
             const points = mt.map((v,i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(" ");
             const area = `${xs(0).toFixed(1)},${(H-padBot).toFixed(1)} ${points} ${xs(11).toFixed(1)},${(H-padBot).toFixed(1)}`;
+            const yTicks = [0, 0.25, 0.5, 0.75, 1];
             return (
               <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H, display:"block" }}>
-                {[0,0.25,0.5,0.75,1].map((p,i)=>(
-                  <line key={i}
-                    x1={padX} x2={W-padX}
-                    y1={padTop+(H-padTop-padBot)*p} y2={padTop+(H-padTop-padBot)*p}
-                    stroke="#EEE" strokeWidth="1" strokeDasharray={p===1?"":"3,4"} />
-                ))}
+                {yTicks.map((p,i)=>{
+                  const y = padTop+(H-padTop-padBot)*(1-p);
+                  return (
+                    <g key={i}>
+                      <line x1={padX} x2={W-padX} y1={y} y2={y}
+                        stroke="#EEE" strokeWidth="1" strokeDasharray={p===0?"":"3,4"} />
+                      <text x={padX-8} y={y+4} textAnchor="end" fontSize="10" fill="var(--text3)" fontVariantNumeric="tabular-nums">
+                        {p===0 ? "0" : "$"+(niceMax*p).toLocaleString("en-US",{maximumFractionDigits:0})}
+                      </text>
+                    </g>
+                  );
+                })}
                 <polygon points={area} fill="var(--up-bg)" opacity="0.6" />
                 <polyline points={points} fill="none" stroke="var(--up)" strokeWidth="2" />
                 {mt.map((v,i) => v>0 && (
-                  <circle key={i} cx={xs(i)} cy={ys(v)} r={i===em?5:3.5}
-                    fill={i===em?"var(--accent)":"var(--up)"}
-                    stroke="#fff" strokeWidth={i===em?2:1} />
+                  <g key={i}>
+                    <circle cx={xs(i)} cy={ys(v)} r={i===em?5:3.5}
+                      fill={i===em?"var(--accent)":"var(--up)"}
+                      stroke="#fff" strokeWidth={i===em?2:1} />
+                    {i===em && (
+                      <text x={xs(i)} y={ys(v)-12} textAnchor="middle" fontSize="11"
+                        fill="var(--accent)" fontWeight="600" fontVariantNumeric="tabular-nums">
+                        {F$(v)}
+                      </text>
+                    )}
+                  </g>
                 ))}
                 {MO.map((m,i) => (
-                  <text key={i} x={xs(i)} y={H-10} textAnchor="middle"
+                  <text key={i} x={xs(i)} y={H-12} textAnchor="middle"
                     fontSize="11"
                     fill={i===em?"var(--accent)":"var(--text3)"}
                     fontWeight={i===em?600:400}>{m}</text>
@@ -833,6 +892,53 @@ export default function App() {
               </svg>
             );
           })()}
+        </div>
+
+        {/* ═══ ④ 12 个月明细 ═══ */}
+        <div className="psec"><span>12 个月明细</span></div>
+        <div className="card card-sub">
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ minWidth:740 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign:"left", position:"sticky", left:0, background:"var(--bg)", zIndex:1, minWidth:108 }}>来源</th>
+                  {MO.map((m,i)=>(
+                    <th key={i} style={{ cursor:"pointer", color:em===i?"var(--accent)":undefined, minWidth:52 }}
+                      onClick={()=>setEm(i)}>{m}</th>
+                  ))}
+                  <th style={{ minWidth:60 }}>合计</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SOURCES.map((s,si)=>(
+                  <tr key={s.id}>
+                    <td style={{ textAlign:"left", fontWeight:500, position:"sticky", left:0, background:"var(--bg)", zIndex:1 }}>{sn(si)}</td>
+                    {MO.map((_,i)=>{
+                      const v=data.monthly[i]?.[s.id]||0;
+                      return <td key={i} style={{
+                        color: v>0?"var(--text1)":"var(--text3)",
+                        background: i===em?"var(--inp-bg)":undefined,
+                        fontWeight: v>0?500:400,
+                      }}>{v>0?FN(v):""}</td>;
+                    })}
+                    <td style={{ fontWeight:600, color:sYTD[si]>0?"var(--text1)":"var(--text3)" }}>{sYTD[si]>0?FN(sYTD[si]):""}</td>
+                  </tr>
+                ))}
+                <tr className="tr-total tr-up">
+                  <td style={{ textAlign:"left", position:"sticky", left:0, background:"var(--up-bg)", zIndex:1 }}>现金流合计</td>
+                  {MO.map((_,i)=>(
+                    <td key={i} style={{ background:i===em?"#D7F5E8":undefined }}>{mt[i]>0?FN(mt[i]):""}</td>
+                  ))}
+                  <td>{ytd>0?FN(ytd):""}</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign:"left", color:"var(--text2)", position:"sticky", left:0, background:"var(--bg)", zIndex:1 }}>定投</td>
+                  {MO.map((_,i)=>{const v=data.dca[i]?.amount||0;return <td key={i} style={{ color:v>0?"var(--text2)":"var(--text3)" }}>{v>0?FN(v):""}</td>;})}
+                  <td style={{ fontWeight:600, color:"var(--text2)" }}>{ytdDCA>0?FN(ytdDCA):""}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* ═══ FOOTER ═══ */}
