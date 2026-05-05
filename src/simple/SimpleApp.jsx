@@ -705,7 +705,7 @@ export default function SimpleApp() {
 
         <div style={{ marginTop: 24, fontSize: 11, color: 'var(--text-subtle)', textAlign: 'center' }}>
           数据保存在浏览器 localStorage · 建议定期导出备份 ·{' '}
-          <button className="s-link" onClick={() => { window.location.hash = ''; }}>切到完整版</button>
+          <button className="s-link" onClick={() => { window.location.assign('/') }}>切到完整版</button>
         </div>
       </div>
 
