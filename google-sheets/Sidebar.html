@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    :root {
+      --bg: #F5F5F7;
+      --card: #FFFFFF;
+      --border: #EBEBEB;
+      --text1: #1A1A1A;
+      --text2: #666666;
+      --text3: #BBBBBB;
+      --accent: #FA6400;
+      --accent-hover: #E05A00;
+      --inp-bg: #FFFBF5;
+      --positive: #09B87A;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+      color: var(--text1);
+      background: var(--bg);
+    }
+    h2 {
+      margin: 0 0 4px 0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .sub {
+      font-size: 10px;
+      color: var(--text3);
+      margin-bottom: 18px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text2);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--card);
+      color: var(--text1);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    input[type=number] {
+      background: var(--inp-bg);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 18px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { background: var(--text3); cursor: wait; }
+
+    .msg {
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-align: center;
+      display: none;
+    }
+    .msg.ok { background: #F0FBF5; color: var(--positive); display: block; }
+    .msg.err { background: #FEF7F7; color: #E84646; display: block; }
+  </style>
+</head>
+<body>
+  <h2>新增记录</h2>
+  <div class="sub">CASHFLOW ENTRY</div>
+
+  <form id="form">
+    <label for="month">月份</label>
+    <input type="month" id="month" required />
+
+    <label for="amount">金额 (USD)</label>
+    <input type="number" id="amount" step="0.01" placeholder="0.00" required />
+
+    <label for="category">类别</label>
+    <select id="category" required></select>
+
+    <label for="note">备注</label>
+    <input type="text" id="note" placeholder="可选" />
+
+    <button type="submit" id="submit">保存</button>
+    <div class="msg" id="msg"></div>
+  </form>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const monthInp = $('month');
+    const today = new Date();
+    monthInp.value = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+
+    google.script.run
+      .withSuccessHandler((cfg) => {
+        const sel = $('category');
+        cfg.categories.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.name;
+          opt.textContent = c.name;
+          sel.appendChild(opt);
+        });
+      })
+      .getFormConfig();
+
+    $('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const btn = $('submit');
+      const msg = $('msg');
+      btn.disabled = true;
+      btn.textContent = '保存中...';
+      msg.className = 'msg';
+      msg.textContent = '';
+
+      const data = {
+        month: $('month').value,
+        amount: $('amount').value,
+        category: $('category').value,
+        note: $('note').value,
+      };
+
+      google.script.run
+        .withSuccessHandler(() => {
+          msg.className = 'msg ok';
+          msg.textContent = '✓ 已保存';
+          $('amount').value = '';
+          $('note').value = '';
+          $('amount').focus();
+          btn.disabled = false;
+          btn.textContent = '保存';
+        })
+        .withFailureHandler((err) => {
+          msg.className = 'msg err';
+          msg.textContent = '保存失败：' + err.message;
+          btn.disabled = false;
+          btn.textContent = '保存';
+        })
+        .addEntry(data);
+    });
+  </script>
+</body>
+</html>
