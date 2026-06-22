@@ -4,6 +4,7 @@ import {
   cloudLoad, cloudSave, cloudGetVersions, cloudRestoreVersion,
   localLoad, localSave, getSheetsUrl, saveSheetsUrl,
 } from "./storage";
+import IPOTree from "./IPOTree";
 
 /* ─── Data constants ─── */
 const SOURCES = [
@@ -36,13 +37,19 @@ const empty = () => ({
   },
 });
 
+const emptyIPOTree = () => ({ people: {}, roots: [] });
+
 const merge = (raw) => {
-  if (!raw || raw.year !== YEAR) return empty();
+  if (!raw) return { ...empty(), ipoTree: emptyIPOTree() };
+  // Preserve ipoTree across year reset
+  const preservedIpo = raw.ipoTree || emptyIPOTree();
+  if (raw.year !== YEAR) return { ...empty(), ipoTree: preservedIpo };
   const base = empty();
   return { ...base, ...raw,
     sources: {...base.sources,...raw.sources},
     labels:  {...base.labels,...raw.labels},
     notes:   Array.isArray(raw.notes) && raw.notes.length===12 ? raw.notes : base.notes,
+    ipoTree: preservedIpo,
   };
 };
 
@@ -328,6 +335,41 @@ tbody tr.tr-total:hover td { background: inherit; }
   flex-wrap: wrap; gap: 8px;
 }
 
+/* Top tab nav */
+.tabnav {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+.tabnav-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.tabnav-btn:hover { background: var(--hover-bg); color: var(--text1); }
+.tabnav-btn.active {
+  background: var(--accent-lt);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* §8 Responsive */
 @media (max-width: 860px) {
   .grid2 { grid-template-columns: 1fr; }
@@ -395,6 +437,7 @@ export default function App() {
   const [pin, setPin]       = useState(getSavedPin());
   const [data, setData]     = useState(null);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [page, setPage]     = useState(() => localStorage.getItem("cashflow-page") || "cashflow");
   const [em, setEm]         = useState(CM); // editMonth
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast]   = useState("");
@@ -433,6 +476,8 @@ export default function App() {
   }, [pin]);
 
   const handleLogin = (p, d) => { setPin(p); setData(d); setLoggedIn(true); };
+
+  const switchPage = (p) => { setPage(p); localStorage.setItem("cashflow-page", p); };
 
   const handleImport = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -505,6 +550,37 @@ export default function App() {
       )}
 
       <div className="page">
+
+        {/* ═══ TOP TAB NAV ═══ */}
+        <div className="tabnav">
+          <button className={`tabnav-btn${page==="cashflow"?" active":""}`} onClick={()=>switchPage("cashflow")}>
+            💰 现金流
+          </button>
+          <button className={`tabnav-btn${page==="ipo"?" active":""}`} onClick={()=>switchPage("ipo")}>
+            🎫 港股打新
+          </button>
+        </div>
+
+        {page === "ipo" ? (
+          <>
+            <IPOTree data={data} save={save} />
+
+            {/* Footer for IPO page */}
+            <div className="foot">
+              <div style={{ display:"flex", gap:6 }}>
+                <button className="btn" style={{ fontSize:12 }} onClick={()=>{exportJSON(data);toast2("已导出");}}>📤 导出 JSON</button>
+                <button className="btn" style={{ fontSize:12 }} onClick={()=>fileRef.current?.click()}>📥 导入</button>
+                <button className="btn" style={{ fontSize:12 }} onClick={openVersions}>🕐 版本历史</button>
+                <button className="btn" style={{ fontSize:12 }} onClick={()=>setModal("settings")}>⚙️ 设置</button>
+              </div>
+              {syncing
+                ? <span className="sync-pill sync-ing">⏳ 同步中</span>
+                : <span className="sync-pill sync-ok">✓ 已同步</span>
+              }
+            </div>
+          </>
+        ) : (
+        <>
 
         {/* ═══ HERO PAGE HEADER ═══ */}
         <div className="card card-hd">
@@ -951,6 +1027,8 @@ export default function App() {
             if(confirm("退出登录？本机缓存将清除。")){clearPin();setPin("");setData(null);setLoggedIn(false);}
           }}>退出登录</button>
         </div>
+        </>
+        )}
       </div>
 
       {/* ═══ §10 SETTINGS MODAL ═══ */}
