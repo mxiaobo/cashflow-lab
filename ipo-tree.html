@@ -241,6 +241,13 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ipo-expiring { font-size: 10px; margin-top: 4px; font-weight: 600; }
+.ipo-link-btn {
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--text2); font-size: 10px; padding: 2px 6px;
+  border-radius: 4px; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.ipo-link-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
 
 .ipo-add-slot {
   display: inline-flex; flex-direction: column;
@@ -355,8 +362,11 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:
   <!-- Footer -->
   <div class="foot">
     <div style="display:flex; gap:6px; flex-wrap:wrap;">
-      <button class="btn" style="font-size:12px;" onclick="exportJSON()">📤 导出 JSON</button>
-      <button class="btn" style="font-size:12px;" onclick="document.getElementById('import-file').click()">📥 导入</button>
+      <button class="btn" style="font-size:12px;" onclick="exportCSV()">📊 导出 Excel</button>
+      <button class="btn" style="font-size:12px;" onclick="openExcelImport()">📋 从 Excel 导入</button>
+      <span style="width:1px; background:var(--border); margin:2px 4px;"></span>
+      <button class="btn" style="font-size:12px;" onclick="exportJSON()">📤 JSON 备份</button>
+      <button class="btn" style="font-size:12px;" onclick="document.getElementById('import-file').click()">📥 JSON 恢复</button>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)" />
       <button class="btn btn-danger" style="font-size:12px;" onclick="resetAll()">🗑 清空</button>
     </div>
@@ -366,6 +376,7 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:
 
 <!-- Modal mount point -->
 <div id="modal-root"></div>
+<div id="excel-modal-root"></div>
 
 <!-- Toast -->
 <div id="toast" class="toast"></div>
@@ -510,6 +521,12 @@ function renderNodeHTML(id) {
   if (p.registeredAt) html += '<div class="ipo-card-date">注册 ' + fmtDate(p.registeredAt) + '</div>';
   if (showExp) html += '<div class="ipo-expiring" style="color:' + expColor + '">⚠️ ' + expText + '</div>';
   if (p.accountId) html += '<div class="ipo-card-acct">#' + escapeHtml(p.accountId) + '</div>';
+  if (p.inviteLink) {
+    html += '<div style="margin-top:6px; display:flex; gap:4px; justify-content:center;">';
+    html += '<button class="ipo-link-btn" onclick="event.stopPropagation(); copyLink(\'' + p.id + '\')" title="复制邀请链接">🔗 复制</button>';
+    html += '<button class="ipo-link-btn" onclick="event.stopPropagation(); openLink(\'' + p.id + '\')" title="打开邀请链接">↗</button>';
+    html += '</div>';
+  }
   html += '</div>';
 
   if (kids.length > 0 || kids.length < MAX_CHILDREN) {
@@ -657,6 +674,7 @@ function onSubmit() {
   if (!name) { alert('姓名必填'); return; }
   editing.form.name = name;
   editing.form.accountId = document.getElementById('f-account').value.trim();
+  editing.form.inviteLink = document.getElementById('f-link').value.trim();
   editing.form.notes = document.getElementById('f-notes').value.trim();
   const regDate = document.getElementById('f-registered').value;
   editing.form.registeredAt = regDate ? new Date(regDate + 'T00:00:00').toISOString() : '';
@@ -726,6 +744,9 @@ function renderModal() {
   html += '<div class="modal-sec">辉立账号 / 联系方式</div>';
   html += '<input class="modal-inp" id="f-account" value="' + escapeHtml(f.accountId || '') + '" placeholder="账号、手机号（备查，可空）" />';
 
+  html += '<div class="modal-sec">邀请链接</div>';
+  html += '<input class="modal-inp" id="f-link" value="' + escapeHtml(f.inviteLink || '') + '" placeholder="https://... 此人的辉立专属邀请链接" />';
+
   html += '<div class="modal-sec">券过期日</div>';
   html += '<input class="modal-inp" type="date" id="f-expire" value="' + dateF('couponsExpireAt') + '" />';
 
@@ -782,6 +803,266 @@ function resetAll() {
   saveState();
   render();
   showToast('已清空');
+}
+
+/* ───────────── Link helpers ───────────── */
+function copyLink(id) {
+  const p = state.people[id];
+  if (!p || !p.inviteLink) return;
+  const link = p.inviteLink;
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('链接已复制：' + p.name); }
+    catch (e) { showToast('复制失败，请手动'); }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(() => showToast('链接已复制：' + p.name)).catch(fallback);
+  } else { fallback(); }
+}
+function openLink(id) {
+  const p = state.people[id];
+  if (!p || !p.inviteLink) return;
+  let url = p.inviteLink;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  window.open(url, '_blank', 'noopener');
+}
+
+/* ───────────── CSV utilities ───────────── */
+function csvEscape(v) {
+  v = String(v == null ? '' : v);
+  if (v.indexOf(',') >= 0 || v.indexOf('"') >= 0 || v.indexOf('\n') >= 0 || v.indexOf('\r') >= 0) {
+    return '"' + v.replace(/"/g, '""') + '"';
+  }
+  return v;
+}
+
+function parseDelimited(text, delimiter) {
+  // Generic parser for CSV (delimiter ',') or TSV (delimiter '\t')
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], field = '', inQ = false, i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if (c === '"') { inQ = true; i++; continue; }
+      if (c === delimiter) { row.push(field); field = ''; i++; continue; }
+      if (c === '\n' || c === '\r') {
+        row.push(field); field = '';
+        if (row.length > 1 || (row[0] && row[0].length)) rows.push(row);
+        row = []; i++;
+        if (c === '\r' && text[i] === '\n') i++;
+        continue;
+      }
+      field += c; i++;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function detectAndParse(text) {
+  // Auto-detect TSV vs CSV by inspecting first line
+  text = text.replace(/^﻿/, '');
+  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  const tabs = (firstLine.match(/\t/g) || []).length;
+  const commas = (firstLine.match(/,/g) || []).length;
+  return parseDelimited(text, tabs > commas ? '\t' : ',');
+}
+
+/* ───────────── Export CSV (for Excel) ───────────── */
+function exportCSV() {
+  // Walk tree in BFS order so parents come before children
+  const ordered = [];
+  const visited = new Set();
+  const queue = state.roots.slice();
+  while (queue.length) {
+    const id = queue.shift();
+    if (visited.has(id) || !state.people[id]) continue;
+    visited.add(id);
+    ordered.push(id);
+    childrenOf(id).forEach(c => queue.push(c.id));
+  }
+  // Also include orphans (shouldn't normally exist)
+  for (const id in state.people) if (!visited.has(id)) ordered.push(id);
+
+  const header = ['序号','姓名','邀请人','状态','邀请链接','注册日期','辉立账号','券过期日','已得券','备注'];
+  const lines = [header.map(csvEscape).join(',')];
+
+  ordered.forEach((id, i) => {
+    const p = state.people[id];
+    const parent = p.parentId ? state.people[p.parentId] : null;
+    const statusLbl = (STATUS[p.status] && STATUS[p.status].label) || '待注册';
+    const row = [
+      i + 1,
+      p.name || '',
+      parent ? (parent.name || '') : '',
+      statusLbl,
+      p.inviteLink || '',
+      fmtDate(p.registeredAt),
+      p.accountId || '',
+      fmtDate(p.couponsExpireAt),
+      calcPersonCoupons(p) || '',
+      p.notes || '',
+    ];
+    lines.push(row.map(csvEscape).join(','));
+  });
+
+  const bom = '﻿';
+  const blob = new Blob([bom + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ipo-tree-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  showToast('已导出 CSV（Excel 可直接打开）');
+}
+
+/* ───────────── Import (CSV / TSV / paste from Excel) ───────────── */
+function applyImportRows(rows) {
+  if (!rows || rows.length < 2) { showToast('数据为空'); return; }
+  const header = rows[0].map(s => (s || '').trim());
+  const idx = (names) => {
+    for (const n of names) {
+      const i = header.indexOf(n);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const iName   = idx(['姓名','名字','Name','name']);
+  if (iName < 0) { alert('找不到「姓名」列，请检查表头'); return; }
+  const iParent = idx(['邀请人','邀请人姓名','上线','父节点','Parent','parent']);
+  const iStatus = idx(['状态','Status','status']);
+  const iLink   = idx(['邀请链接','链接','Invite Link','invite_link','link']);
+  const iReg    = idx(['注册日期','注册时间','Registered','registered_at']);
+  const iAcct   = idx(['辉立账号','账号','账号/联系方式','联系方式','Account','account']);
+  const iExp    = idx(['券过期日','过期日','Expires','expires_at']);
+  const iNotes  = idx(['备注','Notes','notes']);
+
+  if (!confirm('导入将覆盖当前所有数据，确认继续？（建议先「📤 导出 JSON」备份）')) return;
+
+  const parseDate = (s) => {
+    s = (s || '').trim();
+    if (!s) return '';
+    // Accept YYYY-MM-DD / YYYY/MM/DD / Excel date string
+    const d = new Date(s.replace(/\//g, '-'));
+    if (isNaN(d)) return '';
+    return d.toISOString();
+  };
+
+  const newPeople = {};
+  const nameToId = {};
+  const rowMeta = []; // { id, parentName }
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const name = ((row[iName] || '') + '').trim();
+    if (!name) continue;
+    const id = genId();
+    const statusLbl = iStatus >= 0 ? ((row[iStatus] || '') + '').trim() : '';
+    const status = (statusLbl === '已注册' || statusLbl.toLowerCase() === 'registered') ? 'registered' : 'planned';
+    const person = {
+      id, name, parentId: null, status,
+      createdAt: new Date(Date.now() + r).toISOString(),
+    };
+    if (iLink  >= 0) person.inviteLink     = ((row[iLink]  || '') + '').trim();
+    if (iAcct  >= 0) person.accountId      = ((row[iAcct]  || '') + '').trim();
+    if (iNotes >= 0) person.notes          = ((row[iNotes] || '') + '').trim();
+    if (iReg   >= 0) { const v = parseDate(row[iReg]); if (v) person.registeredAt = v; }
+    if (iExp   >= 0) { const v = parseDate(row[iExp]); if (v) person.couponsExpireAt = v; }
+    newPeople[id] = person;
+    if (!nameToId[name]) nameToId[name] = id;  // first wins; warn on dup later
+    rowMeta.push({ id, parentName: iParent >= 0 ? ((row[iParent] || '') + '').trim() : '' });
+  }
+
+  const roots = [];
+  let unmatched = 0;
+  for (const m of rowMeta) {
+    if (m.parentName) {
+      const pid = nameToId[m.parentName];
+      if (pid && pid !== m.id) {
+        newPeople[m.id].parentId = pid;
+      } else {
+        roots.push(m.id);
+        if (!pid) unmatched++;
+      }
+    } else {
+      roots.push(m.id);
+    }
+  }
+
+  state = { people: newPeople, roots: roots };
+  saveState();
+  excelImportOpen = false;
+  renderExcelModal();
+  render();
+  let msg = '导入成功 ' + rowMeta.length + ' 人';
+  if (unmatched > 0) msg += '，' + unmatched + ' 人找不到上线已作为根';
+  showToast(msg);
+}
+
+let excelImportOpen = false;
+function openExcelImport() { excelImportOpen = true; renderExcelModal(); }
+function closeExcelImport() { excelImportOpen = false; renderExcelModal(); }
+
+function renderExcelModal() {
+  const root = document.getElementById('excel-modal-root');
+  if (!excelImportOpen) { root.innerHTML = ''; return; }
+
+  let html = '<div class="overlay" onclick="closeExcelImport()">';
+  html += '<div class="modal" onclick="event.stopPropagation()" style="max-width:620px;">';
+  html += '<div class="modal-h3">📋 从 Excel 导入</div>';
+
+  html += '<div style="font-size:12px; color:var(--text2); margin-bottom:14px; padding:10px 12px; background:var(--th-bg); border-radius:6px; line-height:1.7;">';
+  html += '<b>支持的表头</b>（顺序任意，至少要有<b>姓名</b>列）：';
+  html += '<div style="font-family:monospace; font-size:11px; margin-top:6px; color:var(--text1);">序号 · 姓名 · 邀请人 · 状态 · 邀请链接 · 注册日期 · 辉立账号 · 券过期日 · 备注</div>';
+  html += '<div style="margin-top:8px;">「邀请人」填上线的姓名（空 = 根节点）。「状态」填「已注册」或「待注册」。日期格式 <code>2026-06-22</code>。</div>';
+  html += '</div>';
+
+  html += '<div class="modal-sec">方式 1：粘贴 Excel 内容（推荐）</div>';
+  html += '<div style="font-size:11px; color:var(--text3); margin-bottom:6px;">在 Excel 选中含表头的数据区域 → Ctrl/⌘+C → 粘到下方</div>';
+  html += '<textarea class="modal-inp" id="excel-paste" rows="6" placeholder="在 Excel 选中数据 → 复制 → 粘贴到这里" style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>';
+  html += '<button class="btn btn-primary" style="margin-top:10px; width:100%; justify-content:center;" onclick="doPasteImport()">解析粘贴内容并导入</button>';
+
+  html += '<div class="modal-sec" style="margin-top:24px;">方式 2：上传 CSV 文件</div>';
+  html += '<div style="font-size:11px; color:var(--text3); margin-bottom:6px;">Excel 中「文件 → 另存为 → CSV UTF-8」</div>';
+  html += '<input type="file" id="excel-file" accept=".csv,.tsv,.txt" onchange="doFileImport(event)" />';
+
+  html += '<div class="modal-foot">';
+  html += '<button class="btn" onclick="closeExcelImport()">取消</button>';
+  html += '</div></div></div>';
+
+  root.innerHTML = html;
+}
+
+function doPasteImport() {
+  const text = document.getElementById('excel-paste').value;
+  if (!text.trim()) { alert('请先粘贴内容'); return; }
+  try {
+    const rows = detectAndParse(text);
+    applyImportRows(rows);
+  } catch (e) { showToast('解析失败：' + e.message); }
+}
+
+function doFileImport(e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = (ev) => {
+    try {
+      const rows = detectAndParse(ev.target.result);
+      applyImportRows(rows);
+    } catch (err) { showToast('解析失败：' + err.message); }
+  };
+  r.readAsText(f, 'utf-8');
+  e.target.value = '';
 }
 
 /* ───────────── Boot ───────────── */
