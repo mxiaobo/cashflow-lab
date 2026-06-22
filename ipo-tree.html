@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>港股打新 · 邀请树</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎫</text></svg>" />
+<style>
+:root {
+  --accent:    #FA6400;
+  --accent-hv: #E05A00;
+  --accent-lt: #FFF5EE;
+  --up:        #09B87A;
+  --up-bg:     #F0FBF5;
+  --down:      #E84646;
+  --down-bg:   #FEF7F7;
+  --bg:        #F5F5F7;
+  --card:      #FFFFFF;
+  --border:    #EBEBEB;
+  --hover-bg:  #FAFAFA;
+  --th-bg:     #F8F8F8;
+  --text1:     #1A1A1A;
+  --text2:     #666666;
+  --text3:     #BBBBBB;
+  --inp-bg:    #FFFBF5;
+  --inp-c:     #1677FF;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 14px; font-weight: 400; color: var(--text1); line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#D0D0D0; border-radius:3px; }
+
+.page { max-width: 1180px; margin: 0 auto; padding: 24px 24px 64px; }
+
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  padding: 22px 26px;
+  margin-bottom: 18px;
+}
+.card-hd {
+  border-top: 3px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  padding: 0;
+}
+.card-flush { padding: 22px 0 6px; }
+.card-flush .sec-label { padding: 0 26px; }
+.card-sub { background: transparent; border: 1px solid var(--border); box-shadow: none; }
+
+.sec-label {
+  font-size: 13px; font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  letter-spacing: 0.5px;
+  flex-wrap: wrap; gap: 8px;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: 6px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text2); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s ease;
+  font-family: inherit; white-space: nowrap;
+}
+.btn:hover { background: var(--hover-bg); border-color: #CCC; color: var(--text1); }
+.btn-primary { background: var(--accent); color: #fff; border: none; font-weight: 600; }
+.btn-primary:hover { background: var(--accent-hv); }
+.btn-danger { color: var(--down); }
+
+/* Modal */
+.overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.35); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal {
+  background: var(--card); border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  max-width: 520px; width: 100%; max-height: 90vh;
+  overflow-y: auto; padding: 28px 32px;
+}
+.modal-h3 {
+  font-size: 16px; font-weight: 700;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+}
+.modal-sec { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); margin-top: 16px; margin-bottom: 8px; }
+.modal-sec:first-of-type { margin-top: 0; }
+.modal-inp {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 13px; font-family: inherit; outline: none;
+  transition: border-color 0.15s; background: var(--card);
+}
+.modal-inp:focus { border-color: var(--accent); }
+.modal-foot {
+  border-top: 1px solid var(--border); padding-top: 14px; margin-top: 20px;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--text1); color: #fff; padding: 8px 20px;
+  border-radius: 8px; font-size: 13px; z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14); pointer-events: none;
+  opacity: 0; transition: opacity 0.2s;
+}
+.toast.show { opacity: 1; }
+
+/* Tree */
+.tree-scroll {
+  overflow-x: auto;
+  padding: 8px 0 24px;
+  margin: 0 -26px;
+}
+.tree-self {
+  display: inline-block;
+  min-width: 100%;
+  padding: 16px 32px 0;
+  text-align: center;
+}
+.tree, .tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+}
+.tree { display: inline-block; }
+.tree-from-self {
+  display: flex !important;
+  justify-content: center;
+  padding-top: 28px;
+  position: relative;
+}
+.tree-from-self::before {
+  content: '';
+  position: absolute; top: 0; left: 50%;
+  border-left: 1.5px solid #D8D8D8;
+  height: 28px;
+}
+.tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 28px;
+  position: relative;
+}
+.tree ul::before {
+  content: '';
+  position: absolute; top: 0; left: 50%;
+  border-left: 1.5px solid #D8D8D8;
+  height: 28px;
+}
+.tree li {
+  flex: 1;
+  padding: 28px 10px 0;
+  position: relative;
+  min-width: 150px;
+}
+.tree li::before, .tree li::after {
+  content: ''; position: absolute; top: 0;
+  height: 28px; width: 50%;
+  border-top: 1.5px solid #D8D8D8;
+}
+.tree li::before { left: 0; border-right: 1.5px solid #D8D8D8; }
+.tree li::after  { right: 0; }
+.tree li:only-child::before,
+.tree li:only-child::after { display: none; }
+.tree li:only-child { padding-top: 28px; }
+.tree li:first-child::before,
+.tree li:last-child::after { border: 0 none; }
+.tree li:last-child::before {
+  border-right: 1.5px solid #D8D8D8;
+  border-top-right-radius: 6px;
+}
+.tree li:first-child::after { border-top-left-radius: 6px; }
+
+/* Cards in tree */
+.ipo-card {
+  display: inline-block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 124px;
+  max-width: 200px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  text-align: center;
+  vertical-align: top;
+}
+.ipo-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 3px 10px rgba(250,100,0,0.12);
+  transform: translateY(-1px);
+}
+.ipo-card-self {
+  border: 2px solid var(--accent);
+  background: var(--accent-lt);
+  cursor: default;
+  min-width: 140px;
+}
+.ipo-card-self:hover { transform: none; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+.ipo-card-name {
+  font-size: 14px; font-weight: 600;
+  color: var(--text1); margin-bottom: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ipo-card-status {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; flex-wrap: wrap;
+}
+.ipo-badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 20px; font-size: 10px;
+  font-weight: 600; letter-spacing: 0.5px;
+}
+.ipo-coupons {
+  font-size: 11px; color: var(--accent);
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.ipo-card-date {
+  font-size: 10px; color: var(--text3);
+  margin-top: 5px; font-variant-numeric: tabular-nums;
+}
+.ipo-card-acct {
+  font-size: 10px; color: var(--text3);
+  margin-top: 3px; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ipo-expiring { font-size: 10px; margin-top: 4px; font-weight: 600; }
+
+.ipo-add-slot {
+  display: inline-flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: transparent;
+  border: 1.5px dashed #D0D0D0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 100px; min-height: 62px;
+  cursor: pointer; color: var(--text3);
+  transition: all 0.15s; font-family: inherit;
+  vertical-align: top;
+}
+.ipo-add-slot:hover {
+  border-color: var(--accent); color: var(--accent);
+  background: var(--accent-lt);
+}
+.ipo-add-slot .plus {
+  font-size: 18px; font-weight: 700;
+  line-height: 1; margin-bottom: 2px;
+}
+.ipo-add-slot .lbl { font-size: 10px; letter-spacing: 0.5px; }
+
+/* Status segmented buttons */
+.seg-group { display: flex; gap: 8px; }
+.seg-btn {
+  flex: 1; justify-content: center;
+  padding: 8px 12px; border-radius: 6px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text2); font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  text-align: center; transition: all 0.15s;
+}
+.seg-btn.active-planned { background: var(--th-bg); color: var(--text3); border-color: var(--text3); font-weight: 600; }
+.seg-btn.active-registered { background: var(--up-bg); color: var(--up); border-color: var(--up); font-weight: 600; }
+
+/* Empty state */
+.empty {
+  text-align: center; padding: 60px 20px; color: var(--text3);
+}
+.empty-icon { font-size: 60px; margin-bottom: 16px; opacity: 0.3; }
+
+/* Footer */
+.foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; margin-top: 6px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  flex-wrap: wrap; gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .page { padding: 14px 14px 40px; }
+  .card { padding: 18px 18px; }
+  .modal { padding: 20px; }
+  .tree li { min-width: 130px; padding: 24px 6px 0; }
+  .tree-scroll { margin: 0 -18px; }
+  .tree-self { padding: 12px 18px 0; }
+  .ipo-card { min-width: 110px; padding: 8px 10px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Header -->
+  <div class="card card-hd">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:28px 32px 24px; gap:24px; flex-wrap:wrap;">
+      <div>
+        <div style="font-size:11px; font-weight:600; color:var(--text3); letter-spacing:3px; margin-bottom:6px;">
+          HK IPO REFERRAL TREE
+        </div>
+        <div style="font-size:24px; font-weight:700; color:var(--text1); letter-spacing:1px; margin-bottom:6px;">
+          港股打新 · 邀请树
+        </div>
+        <div style="font-size:12px; color:var(--text3);">
+          辉立证券 · 邀请人 20 张 / 被邀人 10 张 · 每人挂 2 个下线
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px; font-weight:500; color:var(--text3); letter-spacing:1px; margin-bottom:6px;">
+          全树累计券
+        </div>
+        <div id="hero-total" style="display:inline-block; background:var(--th-bg); color:var(--text3); font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; padding:8px 22px; border-radius:10px; line-height:1.2; letter-spacing:-0.5px;">
+          🎫 0
+        </div>
+      </div>
+    </div>
+    <div id="stats-strip" style="display:flex; align-items:stretch; border-top:1px solid var(--border); background:#FAFBFC; border-bottom-left-radius:12px; border-bottom-right-radius:12px; overflow:hidden;">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+
+  <!-- Tree card -->
+  <div class="card card-flush">
+    <div class="sec-label">
+      <span>邀请树 · 你 → A / B → 各 2 个下线 → 递推</span>
+      <span id="root-actions"></span>
+    </div>
+    <div id="tree-container"></div>
+  </div>
+
+  <!-- Help -->
+  <div class="card card-sub" style="font-size:12px; color:var(--text2); line-height:1.8;">
+    <div style="font-size:11px; font-weight:600; color:var(--text3); letter-spacing:1px; margin-bottom:8px;">说明</div>
+    <div>· <b>规则：</b>辉立证券每邀请一人成功注册，邀请人得 20 张券，被邀请人得 10 张券。</div>
+    <div>· <b>为什么二叉：</b>券有有效期，攒太多用不掉会过期。每人最多挂 2 个下线，把券分散到树里慢慢消耗。</div>
+    <div>· <b>玩法：</b>先注册 A、B 两个根 → A 下挂 2 个、B 下挂 2 个 → 这 4 人再各挂 2 个 → 依次递推。</div>
+    <div>· <b>状态：</b>「待注册」= 已计划但还没开户；「已注册」= 已开户，此时才真正发券。</div>
+    <div>· <b>过期：</b>60 天内提醒；30 天内黄；14 天内红。</div>
+    <div>· <b>数据：</b>保存在浏览器本地（localStorage），可导出 JSON 备份 / 换设备导入。</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="foot">
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn" style="font-size:12px;" onclick="exportJSON()">📤 导出 JSON</button>
+      <button class="btn" style="font-size:12px;" onclick="document.getElementById('import-file').click()">📥 导入</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)" />
+      <button class="btn btn-danger" style="font-size:12px;" onclick="resetAll()">🗑 清空</button>
+    </div>
+    <span style="font-size:11px; color:var(--text3);">本地存储 · 双击 HTML 即可使用</span>
+  </div>
+</div>
+
+<!-- Modal mount point -->
+<div id="modal-root"></div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+/* ───────────── Constants ───────────── */
+const COUPONS_INVITER = 20;
+const COUPONS_INVITEE = 10;
+const MAX_CHILDREN = 2;
+const MAX_ROOTS = 2;
+const STORAGE_KEY = 'ipo-tree-data-v1';
+
+const STATUS = {
+  planned:    { label: '待注册', color: 'var(--text3)', bg: 'var(--th-bg)' },
+  registered: { label: '已注册', color: 'var(--up)',    bg: 'var(--up-bg)' },
+};
+
+/* ───────────── State ───────────── */
+let state = loadState();
+let editing = null;  // { form, isNew, parent }
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d && d.people && d.roots) return d;
+    }
+  } catch (e) {}
+  return { people: {}, roots: [] };
+}
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+/* ───────────── Helpers ───────────── */
+function genId() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function daysUntil(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+}
+
+function childrenOf(parentId) {
+  return Object.values(state.people)
+    .filter(p => p.parentId === parentId)
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+}
+
+function descendantsOf(id) {
+  const result = [id];
+  const queue = [id];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const p of Object.values(state.people)) {
+      if (p.parentId === cur) { result.push(p.id); queue.push(p.id); }
+    }
+  }
+  return result;
+}
+
+function calcPersonCoupons(person) {
+  let c = 0;
+  if (person.status === 'registered' && person.parentId) c += COUPONS_INVITEE;
+  for (const p of Object.values(state.people)) {
+    if (p.parentId === person.id && p.status === 'registered') c += COUPONS_INVITER;
+  }
+  return c;
+}
+
+function calcStats() {
+  const all = Object.values(state.people);
+  const registered = all.filter(p => p.status === 'registered');
+  let coupons = 0;
+  for (const p of all) coupons += calcPersonCoupons(p);
+  const selfCoupons = state.roots
+    .map(rid => state.people[rid])
+    .filter(r => r && r.status === 'registered')
+    .length * COUPONS_INVITER;
+  let expiringSoon = 0;
+  for (const p of all) {
+    const d = daysUntil(p.couponsExpireAt);
+    if (d !== null && d >= 0 && d <= 30 && calcPersonCoupons(p) > 0) expiringSoon++;
+  }
+  return {
+    total: all.length,
+    registered: registered.length,
+    planned: all.length - registered.length,
+    coupons, selfCoupons, expiringSoon,
+  };
+}
+
+/* ───────────── Toast ───────────── */
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ───────────── Tree HTML ───────────── */
+function renderNodeHTML(id) {
+  const p = state.people[id];
+  if (!p) return '';
+  const kids = childrenOf(id);
+  const coupons = calcPersonCoupons(p);
+  const status = STATUS[p.status] || STATUS.planned;
+  const expDays = daysUntil(p.couponsExpireAt);
+  const showExp = expDays !== null && expDays >= 0 && expDays <= 60 && coupons > 0;
+  const expColor = expDays <= 14 ? 'var(--down)' : 'var(--accent)';
+  const expText = expDays === 0 ? '今天过期' : (expDays + ' 天后过期');
+
+  let html = '<li>';
+  html += '<div class="ipo-card" onclick="onEdit(\'' + p.id + '\')">';
+  html += '  <div class="ipo-card-name">' + escapeHtml(p.name || '（未命名）') + '</div>';
+  html += '  <div class="ipo-card-status">';
+  html += '    <span class="ipo-badge" style="color:' + status.color + '; background:' + status.bg + '">' + status.label + '</span>';
+  if (coupons > 0) html += '<span class="ipo-coupons">🎫 ' + coupons + '</span>';
+  html += '  </div>';
+  if (p.registeredAt) html += '<div class="ipo-card-date">注册 ' + fmtDate(p.registeredAt) + '</div>';
+  if (showExp) html += '<div class="ipo-expiring" style="color:' + expColor + '">⚠️ ' + expText + '</div>';
+  if (p.accountId) html += '<div class="ipo-card-acct">#' + escapeHtml(p.accountId) + '</div>';
+  html += '</div>';
+
+  if (kids.length > 0 || kids.length < MAX_CHILDREN) {
+    html += '<ul>';
+    for (const c of kids) html += renderNodeHTML(c.id);
+    if (kids.length < MAX_CHILDREN) {
+      html += '<li><button class="ipo-add-slot" onclick="event.stopPropagation(); onAddChild(\'' + p.id + '\')">';
+      html += '<span class="plus">+</span><span class="lbl">邀请下线</span>';
+      html += '</button></li>';
+    }
+    html += '</ul>';
+  }
+  html += '</li>';
+  return html;
+}
+
+/* ───────────── Render ───────────── */
+function render() {
+  const stats = calcStats();
+  const totalCoupons = stats.coupons + stats.selfCoupons;
+
+  // Hero total
+  const hero = document.getElementById('hero-total');
+  hero.innerHTML = '🎫 ' + totalCoupons;
+  hero.style.background = totalCoupons > 0 ? 'var(--accent-lt)' : 'var(--th-bg)';
+  hero.style.color = totalCoupons > 0 ? 'var(--accent)' : 'var(--text3)';
+
+  // Stats strip
+  const regRoots = state.roots.filter(r => state.people[r] && state.people[r].status === 'registered').length;
+  const items = [
+    { label: '总人数',   value: stats.total,        color: 'var(--text1)' },
+    { label: '已注册',   value: stats.registered,   color: stats.registered > 0 ? 'var(--up)' : 'var(--text3)' },
+    { label: '待注册',   value: stats.planned,      color: stats.planned > 0 ? 'var(--text2)' : 'var(--text3)' },
+    { label: '我自己得', value: '🎫 ' + stats.selfCoupons, color: stats.selfCoupons > 0 ? 'var(--accent)' : 'var(--text3)', sub: state.roots.length > 0 ? regRoots + '/' + state.roots.length + ' 根' : '' },
+    { label: '即将过期', value: stats.expiringSoon, color: stats.expiringSoon > 0 ? 'var(--down)' : 'var(--text3)', sub: '30天内' },
+  ];
+  let stripHTML = '';
+  items.forEach((k, i) => {
+    stripHTML += '<div style="flex:1; padding:14px 18px;' + (i < items.length-1 ? ' border-right:1px solid var(--border);' : '') + ' display:flex; flex-direction:column; justify-content:center; min-width:0;">';
+    stripHTML += '<div style="font-size:11px; font-weight:500; color:var(--text2); margin-bottom:4px; display:flex; align-items:baseline; gap:4px;">';
+    stripHTML += '<span>' + k.label + '</span>';
+    if (k.sub) stripHTML += '<span style="color:var(--text3); font-size:10px;">' + k.sub + '</span>';
+    stripHTML += '</div>';
+    stripHTML += '<div style="font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; color:' + k.color + '; line-height:1.2;">' + k.value + '</div>';
+    stripHTML += '</div>';
+  });
+  document.getElementById('stats-strip').innerHTML = stripHTML;
+
+  // Root actions
+  let rootActions = '';
+  if (state.roots.length < MAX_ROOTS) {
+    rootActions = '<button class="btn btn-primary" onclick="onAddRoot()" style="font-size:12px;">+ 添加根节点 ' + state.roots.length + '/' + MAX_ROOTS + '</button>';
+  }
+  document.getElementById('root-actions').innerHTML = rootActions;
+
+  // Tree
+  const tc = document.getElementById('tree-container');
+  if (state.roots.length === 0) {
+    tc.innerHTML = '<div class="empty">' +
+      '<div class="empty-icon">🌳</div>' +
+      '<div style="font-size:14px; margin-bottom:8px; color:var(--text2);">还没有根节点</div>' +
+      '<div style="font-size:12px; margin-bottom:20px;">从 A、B 两个直接由你邀请的根节点开始</div>' +
+      '<button class="btn btn-primary" onclick="onAddRoot()">+ 添加第一个根节点</button>' +
+      '</div>';
+  } else {
+    let html = '<div class="tree-scroll"><div class="tree-self">';
+    html += '<div class="ipo-card ipo-card-self">';
+    html += '  <div class="ipo-card-name">我（你自己）</div>';
+    html += '  <div class="ipo-card-status">';
+    html += '    <span class="ipo-badge" style="color:var(--accent); background:var(--accent-lt)">根</span>';
+    if (stats.selfCoupons > 0) html += '<span class="ipo-coupons">🎫 ' + stats.selfCoupons + '</span>';
+    html += '  </div>';
+    html += '</div>';
+    html += '<ul class="tree tree-from-self">';
+    for (const rid of state.roots) html += renderNodeHTML(rid);
+    if (state.roots.length < MAX_ROOTS) {
+      html += '<li><button class="ipo-add-slot" onclick="event.stopPropagation(); onAddRoot()">';
+      html += '<span class="plus">+</span><span class="lbl">添加根节点</span>';
+      html += '</button></li>';
+    }
+    html += '</ul></div></div>';
+    tc.innerHTML = html;
+  }
+}
+
+/* ───────────── Actions ───────────── */
+function onAddChild(parentId) {
+  const kids = childrenOf(parentId);
+  if (kids.length >= MAX_CHILDREN) { alert('每个邀请人最多挂 ' + MAX_CHILDREN + ' 个下线'); return; }
+  editing = {
+    form: { name: '', parentId: parentId, status: 'planned', createdAt: new Date().toISOString() },
+    isNew: true,
+    parent: state.people[parentId],
+  };
+  renderModal();
+}
+
+function onAddRoot() {
+  if (state.roots.length >= MAX_ROOTS) { alert('最多 ' + MAX_ROOTS + ' 个根节点'); return; }
+  editing = {
+    form: { name: '', parentId: null, status: 'planned', createdAt: new Date().toISOString() },
+    isNew: true,
+    parent: null,
+  };
+  renderModal();
+}
+
+function onEdit(id) {
+  const p = state.people[id];
+  if (!p) return;
+  editing = {
+    form: Object.assign({}, p),
+    isNew: false,
+    parent: p.parentId ? state.people[p.parentId] : null,
+  };
+  renderModal();
+}
+
+function onCancel() {
+  editing = null;
+  renderModal();
+}
+
+function onDelete() {
+  if (!editing || !editing.form.id) return;
+  const id = editing.form.id;
+  const sub = descendantsOf(id);
+  const msg = '删除「' + state.people[id].name + '」' + (sub.length > 1 ? '及其下线（共 ' + sub.length + ' 人）' : '') + '？不可恢复。';
+  if (!confirm(msg)) return;
+  const setDel = new Set(sub);
+  const newPeople = {};
+  for (const pid in state.people) if (!setDel.has(pid)) newPeople[pid] = state.people[pid];
+  state.people = newPeople;
+  state.roots = state.roots.filter(rid => !setDel.has(rid));
+  saveState();
+  editing = null;
+  renderModal();
+  render();
+  showToast('已删除');
+}
+
+function onSubmit() {
+  // Read form from DOM
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('姓名必填'); return; }
+  editing.form.name = name;
+  editing.form.accountId = document.getElementById('f-account').value.trim();
+  editing.form.notes = document.getElementById('f-notes').value.trim();
+  const regDate = document.getElementById('f-registered').value;
+  editing.form.registeredAt = regDate ? new Date(regDate + 'T00:00:00').toISOString() : '';
+  const expDate = document.getElementById('f-expire').value;
+  editing.form.couponsExpireAt = expDate ? new Date(expDate + 'T00:00:00').toISOString() : '';
+
+  if (editing.form.status === 'registered' && !editing.form.registeredAt) {
+    editing.form.registeredAt = new Date().toISOString();
+  }
+
+  if (editing.form.id) {
+    state.people[editing.form.id] = Object.assign({}, editing.form);
+  } else {
+    const id = genId();
+    const newPerson = Object.assign({}, editing.form, { id });
+    state.people[id] = newPerson;
+    if (newPerson.parentId === null) state.roots.push(id);
+  }
+  saveState();
+  editing = null;
+  renderModal();
+  render();
+  showToast('已保存');
+}
+
+function setStatus(s) {
+  editing.form.status = s;
+  renderModal();
+}
+
+/* ───────────── Modal ───────────── */
+function renderModal() {
+  const root = document.getElementById('modal-root');
+  if (!editing) { root.innerHTML = ''; return; }
+  const f = editing.form;
+  const isNew = editing.isNew;
+  const parent = editing.parent;
+
+  const dateF = (k) => f[k] ? f[k].slice(0, 10) : '';
+
+  let parentLine;
+  if (parent) {
+    parentLine = '邀请人：<span style="font-weight:600; color:var(--text1);">' + escapeHtml(parent.name) + '</span> · 注册成功后此人得 <b style="color:var(--accent)">' + COUPONS_INVITEE + '</b> 券，邀请人得 <b style="color:var(--accent)">' + COUPONS_INVITER + '</b> 券';
+  } else {
+    parentLine = '根节点（由你自己邀请）· 注册成功后此人得 <b style="color:var(--accent)">' + COUPONS_INVITEE + '</b> 券，你自己得 <b style="color:var(--accent)">' + COUPONS_INVITER + '</b> 券';
+  }
+
+  let html = '<div class="overlay" onclick="onCancel()">';
+  html += '<div class="modal" onclick="event.stopPropagation()">';
+  html += '<div class="modal-h3">' + (isNew ? '新增邀请人' : '编辑') + '</div>';
+  html += '<div style="font-size:12px; color:var(--text2); margin-bottom:14px; padding:8px 12px; background:var(--th-bg); border-radius:6px;">' + parentLine + '</div>';
+
+  html += '<div class="modal-sec">姓名 / 昵称</div>';
+  html += '<input class="modal-inp" id="f-name" value="' + escapeHtml(f.name || '') + '" placeholder="比如 张三" />';
+
+  html += '<div class="modal-sec">状态</div>';
+  html += '<div class="seg-group">';
+  Object.entries(STATUS).forEach(([k, v]) => {
+    const cls = f.status === k ? ('seg-btn active-' + k) : 'seg-btn';
+    html += '<button class="' + cls + '" onclick="setStatus(\'' + k + '\')">' + v.label + '</button>';
+  });
+  html += '</div>';
+
+  html += '<div class="modal-sec">注册日期</div>';
+  html += '<input class="modal-inp" type="date" id="f-registered" value="' + dateF('registeredAt') + '" />';
+
+  html += '<div class="modal-sec">辉立账号 / 联系方式</div>';
+  html += '<input class="modal-inp" id="f-account" value="' + escapeHtml(f.accountId || '') + '" placeholder="账号、手机号（备查，可空）" />';
+
+  html += '<div class="modal-sec">券过期日</div>';
+  html += '<input class="modal-inp" type="date" id="f-expire" value="' + dateF('couponsExpireAt') + '" />';
+
+  html += '<div class="modal-sec">备注</div>';
+  html += '<textarea class="modal-inp" id="f-notes" placeholder="备注……" rows="2" style="resize:vertical; font-family:inherit; line-height:1.5;">' + escapeHtml(f.notes || '') + '</textarea>';
+
+  html += '<div class="modal-foot">';
+  if (!isNew) html += '<button class="btn btn-danger" style="margin-right:auto;" onclick="onDelete()">删除（含下线）</button>';
+  html += '<button class="btn" onclick="onCancel()">取消</button>';
+  html += '<button class="btn btn-primary" onclick="onSubmit()">保存</button>';
+  html += '</div></div></div>';
+
+  root.innerHTML = html;
+  setTimeout(() => { const n = document.getElementById('f-name'); if (n) n.focus(); }, 50);
+}
+
+/* ───────────── Import / Export / Reset ───────────── */
+function exportJSON() {
+  const a = document.createElement('a');
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ipo-tree-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  showToast('已导出');
+}
+
+function importJSON(e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = (ev) => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (d && d.people && d.roots) {
+        if (!confirm('导入将覆盖当前数据，确认？')) return;
+        state = d;
+        saveState();
+        render();
+        showToast('导入成功');
+      } else {
+        showToast('格式不对');
+      }
+    } catch (err) {
+      showToast('导入失败');
+    }
+  };
+  r.readAsText(f);
+  e.target.value = '';
+}
+
+function resetAll() {
+  if (!confirm('清空所有数据？此操作不可恢复。')) return;
+  state = { people: {}, roots: [] };
+  saveState();
+  render();
+  showToast('已清空');
+}
+
+/* ───────────── Boot ───────────── */
+render();
+</script>
+</body>
+</html>
