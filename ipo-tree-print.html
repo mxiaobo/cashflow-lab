@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>港股打新 · 邀请树 · 打印版</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎫</text></svg>" />
+<style>
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, sans-serif;
+  color: #1a1a1a;
+  background: #ECEEF0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Screen preview frame (looks like printed page) */
+.preview-frame {
+  padding: 30px 20px 80px;
+  display: flex;
+  justify-content: center;
+}
+.sheet {
+  width: 281mm;
+  height: 194mm;
+  padding: 0;
+  background: white;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 8mm 10mm;
+}
+
+/* HEADER */
+.hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 3mm;
+  border-bottom: 1.5px solid #1a1a1a;
+  margin-bottom: 6mm;
+}
+.hd-l h1 {
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: 3px;
+  line-height: 1.2;
+}
+.hd-l .sub {
+  font-size: 8pt;
+  color: #555;
+  margin-top: 1.5mm;
+  letter-spacing: 0.3px;
+}
+.hd-l .tag {
+  display: inline-block;
+  font-size: 7pt;
+  letter-spacing: 2px;
+  color: #FA6400;
+  font-weight: 700;
+  margin-bottom: 1mm;
+}
+.hd-r {
+  text-align: right;
+  font-size: 8.5pt;
+  color: #333;
+  line-height: 1.9;
+}
+.hd-r .ln {
+  display: inline-block;
+  min-width: 36mm;
+  border-bottom: 1px solid #888;
+  height: 4mm;
+  vertical-align: bottom;
+  margin-left: 2mm;
+}
+.hd-r .ln-l { min-width: 55mm; }
+
+/* TREE */
+.tree-wrap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.tree, .tree ul {
+  list-style: none;
+  text-align: center;
+}
+.tree { display: inline-block; width: 100%; }
+.tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 7mm;
+  position: relative;
+}
+.tree ul::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  border-left: 1px solid #888;
+  height: 7mm;
+}
+.tree li {
+  flex: 1;
+  padding: 7mm 1.2mm 0;
+  position: relative;
+}
+.tree > li { padding-top: 0; padding-left: 0; padding-right: 0; }
+.tree > li::before, .tree > li::after { display: none; }
+.tree li::before, .tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 7mm;
+  width: 50%;
+  border-top: 1px solid #888;
+}
+.tree li::before { left: 0; border-right: 1px solid #888; }
+.tree li::after { right: 0; }
+.tree li:only-child::before,
+.tree li:only-child::after { display: none; }
+.tree li:first-child::before,
+.tree li:last-child::after { border: 0; }
+
+/* CELLS */
+.cell {
+  display: inline-block;
+  border: 1.2px solid #333;
+  border-radius: 2mm;
+  padding: 2mm 2.5mm 2mm;
+  text-align: left;
+  background: white;
+  font-size: 8pt;
+  line-height: 1.3;
+  width: 100%;
+  min-height: 19mm;
+}
+.cell-root {
+  background: #FFF5EE;
+  border: 1.8px solid #FA6400;
+  min-height: 16mm;
+  width: 50mm;
+  margin: 0 auto;
+}
+.cell-id {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #FA6400;
+  letter-spacing: 1.5px;
+  margin-bottom: 1.5mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cell-id .badge {
+  font-size: 6pt;
+  background: #FFF5EE;
+  color: #FA6400;
+  border: 1px solid #FA6400;
+  padding: 0.3mm 1.2mm;
+  border-radius: 1mm;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.cell-id .badge-self {
+  background: #FA6400;
+  color: white;
+  border: none;
+}
+.cell-name-line {
+  border-bottom: 0.8px solid #555;
+  height: 4.5mm;
+  margin-bottom: 1.5mm;
+}
+.cell-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 7pt;
+  color: #555;
+  gap: 1.5mm;
+}
+.cell-box {
+  display: inline-block;
+  width: 2.3mm; height: 2.3mm;
+  border: 0.8px solid #333;
+  vertical-align: -0.4mm;
+  margin-right: 0.6mm;
+  border-radius: 0.3mm;
+}
+.cell-line-dot {
+  flex: 1;
+  border-bottom: 0.6px dotted #888;
+  height: 3mm;
+  display: inline-block;
+}
+
+/* Tighter leaf cells */
+.tree > li > ul > li > ul > li > ul > li .cell {
+  font-size: 7.5pt;
+  padding: 1.5mm 2mm;
+  min-height: 17mm;
+}
+.tree > li > ul > li > ul > li > ul > li .cell-name-line {
+  height: 4mm;
+}
+
+/* FOOTER */
+.ft {
+  border-top: 0.8px solid #888;
+  padding-top: 2mm;
+  font-size: 7.5pt;
+  color: #555;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4mm;
+  letter-spacing: 0.3px;
+}
+.ft b { color: #1a1a1a; }
+
+/* SCREEN-ONLY PRINT BUTTON */
+.print-bar {
+  position: fixed;
+  top: 16px; left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 10px 16px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex; gap: 10px; align-items: center;
+  font-size: 13px;
+  z-index: 100;
+}
+.print-bar .hint { color: #666; }
+.print-bar button {
+  background: #FA6400; color: white;
+  border: none; padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.print-bar button:hover { background: #E05A00; }
+.print-bar .alt-btn {
+  background: white; color: #555;
+  border: 1px solid #ddd;
+}
+.print-bar .alt-btn:hover { background: #f5f5f5; color: #1a1a1a; }
+
+@media print {
+  html, body { background: white; margin: 0; }
+  .preview-frame { padding: 0; }
+  .sheet {
+    box-shadow: none;
+    border-radius: 0;
+    width: 100%;
+    height: 100vh;
+    padding: 0;
+  }
+  .print-bar { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+  <span class="hint">A4 横向 · 15 个节点</span>
+  <button onclick="window.print()">🖨 打印 / 存为 PDF</button>
+  <button class="alt-btn" onclick="toggleDepth()" id="toggle-btn">切换为 3 层（7 节点）</button>
+</div>
+
+<div class="preview-frame">
+  <div class="sheet" id="sheet-4">
+    <!-- HEADER -->
+    <div class="hd">
+      <div class="hd-l">
+        <div class="tag">HK IPO REFERRAL PLAN</div>
+        <h1>港股打新 · 邀请树</h1>
+        <div class="sub">辉立证券 · 邀请人 20 张 / 被邀人 10 张 · 每人挂 2 个下线 · 满员 15 人共可得 420 张券</div>
+      </div>
+      <div class="hd-r">
+        <div>日期：<span class="ln"></span></div>
+        <div>备注：<span class="ln ln-l"></span></div>
+      </div>
+    </div>
+
+    <!-- TREE: 4 levels, 1+2+4+8 = 15 nodes -->
+    <div class="tree-wrap">
+      <ul class="tree">
+        <!-- Root: 我 -->
+        <li>
+          <div class="cell cell-root">
+            <div class="cell-id">
+              <span>我</span>
+              <span class="badge badge-self">ROOT</span>
+            </div>
+            <div class="cell-row">
+              <span>得券（20 × 已注册根）：</span>
+              <span class="cell-line-dot" style="min-width:12mm;"></span>
+            </div>
+          </div>
+          <ul>
+            <!-- Level 1: A -->
+            <li>
+              <div class="cell">
+                <div class="cell-id"><span>A</span><span class="badge">L1</span></div>
+                <div class="cell-name-line"></div>
+                <div class="cell-row">
+                  <span><span class="cell-box"></span>待 <span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                  <span>过期<span class="cell-line-dot" style="min-width:8mm; margin-left:0.5mm"></span></span>
+                </div>
+              </div>
+              <ul>
+                <!-- Level 2: A1 -->
+                <li>
+                  <div class="cell">
+                    <div class="cell-id"><span>A1</span><span class="badge">L2</span></div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row">
+                      <span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                    </div>
+                  </div>
+                  <ul>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>A11</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>A12</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <!-- Level 2: A2 -->
+                <li>
+                  <div class="cell">
+                    <div class="cell-id"><span>A2</span><span class="badge">L2</span></div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row">
+                      <span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                    </div>
+                  </div>
+                  <ul>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>A21</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>A22</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+            <!-- Level 1: B -->
+            <li>
+              <div class="cell">
+                <div class="cell-id"><span>B</span><span class="badge">L1</span></div>
+                <div class="cell-name-line"></div>
+                <div class="cell-row">
+                  <span><span class="cell-box"></span>待 <span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                  <span>过期<span class="cell-line-dot" style="min-width:8mm; margin-left:0.5mm"></span></span>
+                </div>
+              </div>
+              <ul>
+                <li>
+                  <div class="cell">
+                    <div class="cell-id"><span>B1</span><span class="badge">L2</span></div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row">
+                      <span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                    </div>
+                  </div>
+                  <ul>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>B11</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>B12</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <div class="cell">
+                    <div class="cell-id"><span>B2</span><span class="badge">L2</span></div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row">
+                      <span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                    </div>
+                  </div>
+                  <ul>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>B21</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                    <li>
+                      <div class="cell">
+                        <div class="cell-id"><span>B22</span><span class="badge">L3</span></div>
+                        <div class="cell-name-line"></div>
+                        <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="ft">
+      <span>每节点最多挂 <b>2 个下线</b>，避免券堆积过期 · ID（A11 = A 的第一个下线的第一个下线）</span>
+      <span><b>满员 15 人</b> · 我 40 + A/B 各 50 + L2 各 50 + L3 各 10 = <b>420 张券</b></span>
+    </div>
+  </div>
+
+  <!-- Smaller version: 3 levels, 1+2+4 = 7 nodes -->
+  <div class="sheet" id="sheet-3" style="display:none;">
+    <div class="hd">
+      <div class="hd-l">
+        <div class="tag">HK IPO REFERRAL PLAN</div>
+        <h1>港股打新 · 邀请树（简版 3 层）</h1>
+        <div class="sub">辉立证券 · 邀请人 20 张 / 被邀人 10 张 · 每人挂 2 个下线 · 满员 7 人共可得 180 张券</div>
+      </div>
+      <div class="hd-r">
+        <div>日期：<span class="ln"></span></div>
+        <div>备注：<span class="ln ln-l"></span></div>
+      </div>
+    </div>
+
+    <div class="tree-wrap">
+      <ul class="tree">
+        <li>
+          <div class="cell cell-root">
+            <div class="cell-id">
+              <span>我</span>
+              <span class="badge badge-self">ROOT</span>
+            </div>
+            <div class="cell-row">
+              <span>得券（20 × 已注册根）：</span>
+              <span class="cell-line-dot" style="min-width:14mm;"></span>
+            </div>
+          </div>
+          <ul>
+            <li>
+              <div class="cell" style="min-height:30mm; width:90%; margin:0 auto;">
+                <div class="cell-id"><span>A</span><span class="badge">L1</span></div>
+                <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">姓名</div>
+                <div class="cell-name-line"></div>
+                <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">辉立账号 / 联系方式</div>
+                <div class="cell-name-line"></div>
+                <div class="cell-row" style="margin-top:1mm;">
+                  <span><span class="cell-box"></span>待 <span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                  <span>过期<span class="cell-line-dot" style="min-width:12mm; margin-left:0.5mm"></span></span>
+                </div>
+              </div>
+              <ul>
+                <li>
+                  <div class="cell" style="min-height:26mm;">
+                    <div class="cell-id"><span>A1</span><span class="badge">L2</span></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">姓名</div>
+                    <div class="cell-name-line"></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">账号</div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                  </div>
+                </li>
+                <li>
+                  <div class="cell" style="min-height:26mm;">
+                    <div class="cell-id"><span>A2</span><span class="badge">L2</span></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">姓名</div>
+                    <div class="cell-name-line"></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">账号</div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                  </div>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <div class="cell" style="min-height:30mm; width:90%; margin:0 auto;">
+                <div class="cell-id"><span>B</span><span class="badge">L1</span></div>
+                <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">姓名</div>
+                <div class="cell-name-line"></div>
+                <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">辉立账号 / 联系方式</div>
+                <div class="cell-name-line"></div>
+                <div class="cell-row" style="margin-top:1mm;">
+                  <span><span class="cell-box"></span>待 <span class="cell-box" style="margin-left:1.5mm"></span>注</span>
+                  <span>过期<span class="cell-line-dot" style="min-width:12mm; margin-left:0.5mm"></span></span>
+                </div>
+              </div>
+              <ul>
+                <li>
+                  <div class="cell" style="min-height:26mm;">
+                    <div class="cell-id"><span>B1</span><span class="badge">L2</span></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">姓名</div>
+                    <div class="cell-name-line"></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">账号</div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                  </div>
+                </li>
+                <li>
+                  <div class="cell" style="min-height:26mm;">
+                    <div class="cell-id"><span>B2</span><span class="badge">L2</span></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">姓名</div>
+                    <div class="cell-name-line"></div>
+                    <div style="font-size:7pt; color:#777; margin-bottom:0.5mm;">账号</div>
+                    <div class="cell-name-line"></div>
+                    <div class="cell-row"><span><span class="cell-box"></span>待<span class="cell-box" style="margin-left:1.5mm"></span>注</span></div>
+                  </div>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="ft">
+      <span>简版：先把第一阶 7 人填进去 · 每个节点空间更大，可写更多信息</span>
+      <span><b>满员 7 人</b> · 我 40 + A/B 各 50 + L2 各 10 = <b>180 张券</b></span>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleDepth() {
+  const s4 = document.getElementById('sheet-4');
+  const s3 = document.getElementById('sheet-3');
+  const btn = document.getElementById('toggle-btn');
+  if (s4.style.display === 'none') {
+    s4.style.display = 'flex';
+    s3.style.display = 'none';
+    btn.textContent = '切换为 3 层（7 节点）';
+  } else {
+    s4.style.display = 'none';
+    s3.style.display = 'flex';
+    btn.textContent = '切换为 4 层（15 节点）';
+  }
+}
+</script>
+
+</body>
+</html>
